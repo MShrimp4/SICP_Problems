@@ -1,0 +1,153 @@
+1.7
+
+(define (good-enough? guess x)
+  (< (abs (- (/ (square guess) x) 1)) 0.0001))
+(define (average x y)
+  (/ (+ x y) 2))
+(define (improve guess x)
+  (average guess (/ x guess)))
+(define (sqrt-iter guess x)
+  (if (good-enough? guess x)
+      guess
+      (sqrt-iter (improve guess x)
+                 x)))
+(define (my-sqrt x)
+  (sqrt-iter x x))
+
+1.8
+
+(define (sq x) (* x x))
+(define (tri x) (* x x x))
+(define (good-enough? guess x)
+  (< (abs (- (/ (tri guess) x) 1)) 0.01))
+(define (improve guess x)
+  (/ (+ (/ x (sq guess)) (* 2 guess)) 3))
+(define (sqrt-iter guess x)
+  (if (good-enough? guess x)
+      guess
+      (sqrt-iter (improve guess x)
+                 x)))
+(define (cube-root x)
+  (sqrt-iter x x))
+
+
+1.11
+(define (f n)
+  (define (iter x1 x2 x3 count)
+    (if (= count 0) x1
+        (iter x2 x3 (+ x3 (* 2 x2) (* 3 x1)) (- count 1)))
+    )
+  (if (< n 3) n (iter 0 1 2 n)))
+
+
+1.12
+(define (pascal row col)
+  (cond ((or (= col 0) (= col row)) 1)
+        ((or (< col 0) (> col row)) 0)
+        (else (+ (pascal (- row 1) col) (pascal (- row 1) (- col 1))))))
+
+1.16
+(define (fast-expt b n)
+  (cond
+   ((= n 0) 1)
+   ((even? n) (fast-expt (* b b) (/ n 2)))
+   (else (* b (fast-expt (* b b) (/ (- n 1) 2))))))
+
+1.17
+
+(define (mul a b)
+  (define (double x) (* x 2))
+  (define (halve x) (/ x 2))
+  (cond
+   ((= b 0) 0)
+   ((even? b) (mul (double a) (halve b)))
+   (else (+ a (mul a (- b 1))))))
+
+1.18
+
+(define (mul a b)
+  (define (double x) (* x 2))
+  (define (halve x) (/ x 2))
+  (define (iter a b cur)
+    (cond 
+     ((= b 0) cur)
+     ((even? b) (iter (double a) (halve b) cur))
+     (else (iter a (- b 1) (+ cur a)))))
+  (iter a b 0))
+
+1.29
+(define (simpson f a b n)
+  (define (fromto a b step)
+    (if (< b a) 0 (+ (f a) (fromto (+ a step) b step))))
+  (let ((step (/ (- b a) n)))
+    (* (/ step 3) 
+       (+ (f a) 
+          (f b) 
+          (* 4 (fromto (+ a step) (- b step) (* 2 step))) 
+          (* 2 (fromto (+ a (* 2 step)) (- b (* 2 step)) (* 2 step)))))))
+
+1.30
+(define (sum term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (+ (term a) result))))
+  (iter a 0))
+
+1.31
+(define (product term a next b)
+  (define (iter a result)
+    (if (< b a)
+        result
+        (iter (next a) (* (term a) result))))
+  (iter a 1))
+
+1.32
+;-iter
+(define (accumulate combiner null-value term a next b)
+  (define (iter a result)
+    (if (< b a)
+        result
+        (iter (next a) (combiner (term a) result))))
+  (iter a null-value))
+;-recur
+(define (accumulate combiner null-value term a next b)
+  (define (rec a)
+    (if (< b a)
+        null-value
+        (combiner (term a) (rec (next a)))))
+  (rec a))
+
+<여기 푼게 있어야 - 분수 arithmetic>
+
+2.17
+(define (last-pair l)
+  (if (null? (cdr l)) l (last-pair (cdr l))))
+(last-pair (list 23 72 149 34))
+
+2.18
+(define (reverse l)
+  (define (iter old new)
+    (if (null? old)
+        new
+        (iter (cdr old) (cons (car old) new))))
+  (iter l '()))
+
+2.19
+(define no-more? null?)
+(define except-first-denomination cdr)
+(define first-denomination car)
+
+2.20
+(define (same-parity x . y)
+  (define (rec par l)
+    (cond ((null? l) '())
+          ((eq? (even? (car l)) par)
+           (cons (car l) (rec par (cdr l))))
+          (else (rec par (cdr l)))
+        ))
+  (rec (even? x) (cons x y)))
+
+
+
+(reverse (list 1 4 9 16 25))
