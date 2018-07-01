@@ -148,6 +148,43 @@
         ))
   (rec (even? x) (cons x y)))
 
+2.21
+(define (square-list items)
+  (define (sq x) (* x x))
+  (if (null? items)
+      '()
+      (cons (sq (car items)) (square-list (cdr items)))))
+
+(define (square-list-map items)
+  (map (lambda (x) (* x x)) items))
+
+
+2.23
+(define (for-each proc lst)
+  (if (null? lst)
+      '()
+      (begin
+        (proc (car lst))
+        (for-each proc (cdr lst)))))
+
+2.27
+(define (deep-reverse lst)
+  (define (iter old new)
+    (cond ((null? old) new)
+          ((pair? (car old)) (iter (cdr old) (cons (deep-reverse (car old)) new)))
+          (else (iter (cdr old) (cons (car old) new)))))
+  (iter lst '()))
+
+2.28
+(define (fringe lst)
+  (define (rec lst next)
+    (cond ((null? lst) next)
+          ((pair? lst) (rec (car lst) (rec (cdr lst) next)))
+          (else (cons lst next))))
+  (rec lst '()))
+
+
 
 
 (reverse (list 1 4 9 16 25))
+
