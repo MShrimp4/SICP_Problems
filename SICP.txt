@@ -278,3 +278,6 @@
       '()
       (cons (accumulate op init (cars seqs))
             (accumulate-n op init (cdrs seqs)))))
+
+2.37
+;(define (dot-product v w)(map (lambda (a b) (map * a b)) v w))
