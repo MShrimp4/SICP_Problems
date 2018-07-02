@@ -237,3 +237,21 @@
                             (tree-map f (cdr tree))))
         (else (f tree))))
 
+2.32
+(define (subsets s)
+  (if (null? s)
+      (list nil)
+      (let ((rest (subsets (cdr s))))
+        (append rest (map (lambda (x) (cons (car s) x)) rest)))))
+
+2.33
+(define (map p sequence)
+  (accumulate (lambda (x y) (cons (p x) y)) nil sequence))
+(define (append seq1 seq2)
+  (accumulate cons seq2 seq1))
+(define (length sequence)
+  (accumulate (lambda (x y) (+ y 1)) 0 sequence))
+(define (length sequence)
+  (accumulate (lambda (x y) (+ y 1)) 0 sequence))
+
+2.34
