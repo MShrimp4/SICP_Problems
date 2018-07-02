@@ -224,6 +224,16 @@
          ((pair? tree) (cons (square-tree (car tree))
                                  (square-tree (cdr tree))))
          (else (square tree))))
+(define (square-tree-map tree)
+  (if (pair? tree)
+      (map square-tree-map tree)
+      (square tree)))
 
-(reverse (list 1 4 9 16 25))
+2.31
+(define (square-tree tree) (tree-map square tree))
+(define (tree-map f tree)
+  (cond ((null? tree) tree)
+        ((pair? tree) (cons (tree-map f (car tree))
+                            (tree-map f (cdr tree))))
+        (else (f tree))))
 
