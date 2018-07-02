@@ -135,3 +135,29 @@
   (accumulate (lambda (x y) (+ y 1)) 0 sequence))
 
 2.34
+(define (horner-eval x coefficient-sequence)
+  (accumulate (lambda (this-coeff higher-terms) (+ this-coeff (* x higher-terms)))
+              0
+              coefficient-sequence))
+
+2.35
+(define (count-leaves t)
+  (accumulate + 0 (map (lambda (x) 1) t)))
+
+2.36
+(define (accumulate-n op init seqs)
+  (define (cars lis)
+    (if (null? lis)
+	'()
+	(cons (caar lis) (cars (cdr lis)))))
+  (define (cdrs lis)
+    (if (null? lis)
+	'()
+	(cons (cdar lis) (cdrs (cdr lis)))))
+  (if (null? (car seqs))
+      '()
+      (cons (accumulate op init (cars seqs))
+            (accumulate-n op init (cdrs seqs)))))
+
+2.37
+;(define (dot-product v w)(map (lambda (a b) (map * a b)) v w))
