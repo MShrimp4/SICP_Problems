@@ -161,3 +161,33 @@
 
 2.37
 ;(define (dot-product v w)(map (lambda (a b) (map * a b)) v w))
+(define (dot-product v w)
+  (map * v w))
+(define (matrix-*-vector m w)
+  (if (null? m)
+      '()
+      (cons (fold-right + 0 (dot-product (car m) w))
+	    (matrix-*-vector (cdr m) w))))
+;use fold-right (fold-left when + etc.) instead of accumulate
+(define (transpose mat)
+  (accumulate-n (lambda (cur next) (cons cur next)) '() mat))
+(define (matrix-*-matrix m n)
+  (define (calc-rows m inv-n)
+    (if (null? m)
+	'()
+	(cons (matrix-*-vector inv-n (car m)) (calc-rows (cdr m) inv-n))))
+  (calc-rows m (transpose n)))
+;(define accumulate fold-right)
+
+2.39
+(define (reverse sequence)
+  (fold-left (lambda (x y) (if (null? y) x (cons y x))) '() sequence))
+(define (reverse sequence)
+  (fold-right (lambda (x y)
+		(if (null? y)
+		    (list x)
+		    (append y (list x))))
+	      '()
+	      sequence))
+
+
