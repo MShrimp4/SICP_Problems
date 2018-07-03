@@ -53,3 +53,27 @@
 (define (sq x) (* x x))
 (define (some-circle x y)
   (<= (+ (sq (- x 5)) (sq (- y 7))) 9))
+
+3.6
+(define (rand option)
+  (cond ((eq? option 'generate) random)
+	((eq? option 'reset) random-seed)))
+
+3.7
+(define (make-joint account prevpw newpw)
+  (let ((withdraw (account prevpw 'withdraw))
+	(deposit (account prevpw 'deposit)))
+    (if (null? withdraw)
+	(display "Password Incorrect")
+	(lambda (pw m)
+	  (if (eq? pw newpw)
+	      (cond ((eq? m 'withdraw) withdraw)
+		    ((eq? m 'deposit) deposit)
+		    (else (display "Unknown request -- Make-account")))
+	      (display "Incorrect Password"))))))
+
+3.8
+(define local 1)
+(define (f x)
+  (set! local (* local x))
+  local)
