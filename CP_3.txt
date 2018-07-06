@@ -134,4 +134,107 @@
         (else (iter (safe-cdr slow) (safe-cdr (safe-cdr fast))))))
     (iter x (safe-cdr x)))
 
-3.21
+3.23
+(define (make-deque) (cons '() '()))
+(define (single-deque? x) (eq? (front-deque x) (rear-deque x)))
+(define (front-deque x) (car x))
+(define (rear-deque x) (cdr x))
+(define (empty-deque? x) (null? (front-deque x)))
+(define (front-insert-deque! x item)
+    (let ((new-pair (cons item '())))
+      (if (empty-deque? x)
+          (assoc-deque! x new-pair)
+          (begin
+            (set-cdr! new-pair (car x))
+            (set-front-ptr! x new-pair)
+            x))))
+(define (rear-insert-deque! x item)
+    (let ((new-pair (cons item '())))
+      (if (empty-deque? x)
+          (assoc-deque! x new-pair)
+          (begin
+            (set-cdr! (rear-deque x) new-pair)
+            (set-rear-ptr! x new-pair)
+            x))))
+(define (assoc-deque! x pair)
+    (set-front-ptr! x pair)
+    (set-rear-ptr! x pair)
+    x)
+ (define (rear-insert-deque! x item)
+      (let ((new-pair (cons item '())))
+        (if (empty-deque? x)
+            (assoc-deque! x new-pair)
+            (begin
+              (set-cdr! (rear-deque x) new-pair)
+              (set-rear-ptr! x new-pair)
+              x))))
+(define (front-insert-deque! x item)
+    (let ((new-pair (cons item '())))
+      (if (empty-deque? x)
+          (assoc-deque! x new-pair)
+          (begin
+            (set-cdr! new-pair (car x))
+            (set-front-ptr! x new-pair)
+            x))))
+(define (front-delete-deque! x)
+    (if (single-deque? x)
+        (make-deque)
+        (begin
+          (set-front-ptr! x (cdr (front-deque x)))
+          x)))
+(define (rear-delete-deque! x)
+    (if (single-deque? x)
+        (make-deque)
+        (begin
+          (let ((new-end (find-pre-rear x)))
+            (set-cdr! new-end '())
+            (set-rear-ptr! x new-end)
+            x))))
+(define (print-deque x)
+    (display (front-deque x)))
+(define (set-front-ptr! x item) (set-car! x item))
+(define (set-rear-ptr! x item) (set-cdr! x item))
+(define (find-pre-rear x)
+    (define (iter rear list)
+      (if (eq? (cdr list) rear)
+          list
+          (iter rear (cdr list))))
+    (if (single-deque? x)
+        (errorf 'find-pre-rear "Cannot Use in single pair deque")
+        (iter (rear-deque x) (front-deque x))))
+
+3.24
+(define (make-table same-key?)
+    (let ((local-table (list '*table*)))
+      (define (assoc key records)
+        (cond
+          ((null? records) #f)
+          ((same-key? key (caar records)) (car records))
+          (else (assoc key (cdr records)))))
+      (define (lookup key-1 key-2)
+        (let ((subtable (assoc key-1 (cdr local-table))))
+          (if subtable
+              (let ((record (assoc key-2 (cdr subtable))))
+                (if record
+                    (cdr record)
+                    #f))
+              #f)))
+      (define (insert! key-1 key-2 value)
+        (let ((subtable (assoc key-1 (cdr local-table))))
+          (if subtable
+              (let ((record (assoc key-2 (cdr subtable))))
+                (if record
+                    (set-cdr! record value)
+                    (set-cdr! subtable
+                              (cons (cons key-2 value)
+                                    (cdr subtable)))))
+              (set-cdr! local-table
+                        (cons (list key-1
+                                    (cons key-2 value))
+                              (cdr local-table)))))
+        'ok)
+      (define (dispatch m)
+        (cond ((eq? m 'lookup-proc) lookup)
+              ((eq? m 'insert-proc!) insert!)
+              (else (errorf m "Unknown operation -- TABLE"))))
+      dispatch))
