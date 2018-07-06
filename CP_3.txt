@@ -77,3 +77,61 @@
 (define (f x)
   (set! local (* local x))
   local)
+
+
+#3.14 - reverse!
+
+3.17
+(define (count-pairs x)
+    (define (exist? p pairs)
+      (if (null? pairs)
+          #f
+          (or (eq? p (car pairs)) (exist? p (cdr pairs)))))
+    (define (register p pairs)
+      (if (exist? p pairs)
+          pairs
+          (cons p pairs)))
+    (define (iter x pairs)
+      (if (pair? x)
+          (if (exist? x pairs)
+              pairs
+              (iter (car x) (iter (cdr x) (register x pairs))))
+          pairs))
+    (length (iter x '())))
+
+3.18
+#이용한 루프 제조기
+(define (make-loop lis)
+    (define (iter rest)
+      (if (null? (cdr rest))
+          (set-cdr! rest lis)
+          (iter (cdr rest))))
+    (iter lis))
+
+#w/ state
+(define (looped? x)
+    (define dummy '())
+    (cond
+      ((eq? x 'visited) #t)
+      ((pair? x)
+       (set! dummy (cdr x))
+       (set-cdr! x 'visited)
+       (let ((result (looped? dummy)))
+         (set-cdr! x dummy)
+         result))
+      (else #f)))
+
+3.19
+(define (looped? x)
+    (define (safe-cdr x)
+      (if (pair? x)
+          (cdr x)
+          '()))
+    (define (iter slow fast)
+      (cond
+        ((null? fast) #f)
+        ((eq? slow fast) #t)
+        (else (iter (safe-cdr slow) (safe-cdr (safe-cdr fast))))))
+    (iter x (safe-cdr x)))
+
+3.21
