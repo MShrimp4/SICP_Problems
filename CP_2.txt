@@ -190,4 +190,43 @@
 	      '()
 	      sequence))
 
+2.40
+(define (enumerate-interval stt end)
+  (if (> stt end)
+      '()
+      (cons stt (enumerate-interval (+ 1 stt) end))))
+(define (unique-pairs n)
+  (fold-right (lambda (j prev)
+		(append (map
+		     (lambda (i) (cons i j))
+		     (enumerate-interval 1 j))
+		    prev))
+	      '()
+	      (enumerate-interval 1 n)))
+(define (prime? n)
+  (define (iter cur n rn)
+    (cond
+     ((< rn cur) #t)
+     ((= (remainder n cur) 0) #f)
+     (else (iter (+ 1 cur) n rn))))
+  (iter 2 n (sqrt n)))
+(define (prime-sum-pairs n)
+  (define (prime-sum? pair)
+    (prime? (+ (car pair) (cdr pair))))
+  (filter prime-sum? (unique-pairs n)))
 
+2.41
+(define (flatmap f lis)
+  (fold-right (lambda (x rest) (append (f x) rest)) '() lis))
+(define (unique-list n len)
+  (if (= len 1)
+      (map list (enumerate-interval 1 n))
+      (flatmap
+       (lambda (ulist)
+	 (map
+	  (lambda (x) (cons x ulist))
+	  (filter
+	   (lambda (obj) (not (member obj ulist)))
+	   (enumerate-interval 1 n))))
+       (unique-list n (- len 1)))))
+(define (unique-triple n) (unique-list n 3))
