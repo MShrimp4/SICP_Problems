@@ -230,3 +230,42 @@
 	   (enumerate-interval 1 n))))
        (unique-list n (- len 1)))))
 (define (unique-triple n) (unique-list n 3))
+
+2.42
+(define (queens board-size)
+  (define (queen-cols k)  
+    (if (= k 0)
+        (list empty-board)
+        (filter
+         (lambda (positions) (safe? k positions))
+         (flatmap
+          (lambda (rest-of-queens)
+            (map (lambda (new-row)
+                   (adjoin-position new-row k rest-of-queens))
+                 (enumerate-interval 1 board-size)))
+          (queen-cols (- k 1))))))
+  (queen-cols board-size))
+(define row car)
+(define col cdr)
+(define make-pos cons)
+(define empty-board '())
+(define (adjoin-position r c rest)
+  (cons (make-pos r c) rest))
+(define (safe? k positions)
+  (define (safe-queen? p positions)
+    (define (conflict? p1 p2)
+      (or
+       (= (row p1) (row p2))
+       ;(= (col p1) (row p2)) ;;Not needed
+       (= (+ (row p1) (col p1))
+	  (+ (row p2) (col p2)))
+       (= (- (row p1) (col p1))
+	  (- (row p2) (col p2)))))
+    (cond
+     ((null? positions) #t)
+     ((conflict? (car positions) p) #f)
+     (else (safe-queen? p (cdr positions)))))
+  (if (= k (col (car positions)))
+      (safe-queen? (car positions) (cdr positions))
+      (errorf 'safe? "Well, that was unexpected. My bad.")))
+
