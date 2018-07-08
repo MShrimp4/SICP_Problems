@@ -80,7 +80,7 @@
 
 
 #3.14 - reverse!
-
+n
 3.17
 (define (count-pairs x)
     (define (exist? p pairs)
@@ -509,3 +509,56 @@
     (constant num z)
     z))
 
+
+#stream implementation
+(define the-empty-stream '())
+(define (memoize proc)
+  (let ((run? #f) (result #f))
+    (lambda ()
+      (if (not run?)
+	  (begin
+	    (set! result (proc))
+	    (set! run? #t)
+	    result)
+	  result))))
+(define-syntax cons-stream
+  (syntax-rules ()
+    [(_ a d) (cons a (memoize (delay d)))]))
+(define (stream-car st) (car st))
+(define (stream-cdr st) (force (cdr st)))
+
+
+3.51
+(define (stream-map proc . argstreams)
+  (if (null? (car argstreams))
+      the-empty-stream
+      (cons-stream
+       (apply proc (map stream-car argstreams))
+       (apply stream-map
+	      (cons proc (map stream-cdr argstreams))))))
+
+
+# Experiment
+(define (mk-count n)
+  (let ((cnt n))
+    (define (rec)
+      (if (< cnt 0)
+	  '()
+	  (begin
+	    (set! cnt (- cnt 1))
+	    (cons-stream cnt (rec)))))
+    (rec)))
+(define (stream-ref st n)
+  (if (= n 1)
+      (stream-car st)
+      (stream-nth (- n 1) (stream-cdr st))))
+(define a (cons-stream
+	   1
+	   a))
+(define b (cons-stream
+	   1
+	   (stream-map + b (stream-cdr a))))
+
+#3.53 test
+(define (add-streams s1 s2)
+  (stream-map + s1 s2))
