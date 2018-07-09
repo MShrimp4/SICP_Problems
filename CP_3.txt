@@ -100,7 +100,7 @@ n
     (length (iter x '())))
 
 3.18
-#ÀÌ¿ëÇÑ ·çÇÁ Á¦Á¶±â
+#Ã€ÃŒÂ¿Ã«Ã‡Ã‘ Â·Ã§Ã‡Ã ÃÂ¦ÃÂ¶Â±Ã¢
 (define (make-loop lis)
     (define (iter rest)
       (if (null? (cdr rest))
@@ -556,8 +556,8 @@ n
   (if (stream-null? st)
       '()
       (delayed-map (f (stream-car st)) f (stream-cdr st))))
-(define (add-streams s1 s2)
-  (stream-map + s1 s2))
+(define (add-streams . s)
+  (apply stream-map (cons + s)))
 (define (mul-streams s1 s2)
   (stream-map * s1 s2))
 (define (div-streams s1 s2)
@@ -657,7 +657,7 @@ partial-sums : stream implementation
 (define (mul-series s1 s2)
   (cons-stream
    (* (stream-car s1) (stream-car s2))
-   (add-streams
+    (add-streams
     (mul-streams (stream-cdr s1) (repeat (stream-car s2)))
     (mul-series s1 (stream-cdr s2)))))
 
@@ -772,36 +772,152 @@ partial-sums : stream implementation
 (define (triples s t u) )
 
 3.69
-(define (sloppy-conser s1 s2)
+(define (cons-all target atom)
+  (if (null? target)
+      '()
+      (cons (cons atom (car target)) (cons-all (cdr target) atom))))
+(define (lazy-append st)
+  (define (lazy-iter lst st)
+    (if (null? lst)
+	(lazy-append st)
+	(cons-stream
+	 (car lst)
+	 (lazy-iter (cdr lst) st))))
+  (if (stream-null? st)
+      '()
+      (lazy-iter (stream-car st) (stream-cdr st))))
+(define (partial-append st)
+  (define self
+    (cons-stream
+     (stream-car st)
+     (stream-map append self (stream-cdr st))))
+  self)
+(define (soap . sts)
+  (define (iter prev sts)
+    (if (null? sts)
+	(lazy-append prev)
+	(let ((cur (car sts))
+	      (rest (cdr sts)))
+	  (iter (stream-map cons-all (partial-append prev) cur)
+		rest))))
+  (iter (stream-map list (stream-map list (car sts))) (cdr sts)))
+(define triples
+  (stream-map reverse (soap integers integers integers)))
+(define (square x) (* x x))
+(define pyt-triple
+  (stream-filter
+   (lambda (lst)
+     (= (square (caddr lst))
+	(+ (square (cadr lst))
+	   (square (car lst)))))
+   triples))
+
+3.70
+(define (merge-weighted s1 s2 weight)
+  (define (w< v1 v2)
+    (< (weight v1) (weight v2)))
+  (cond ((stream-null? s1) s2)
+        ((stream-null? s2) s1)
+        (else
+         (let ((s1car (stream-car s1))
+               (s2car (stream-car s2)))
+           (cond ((w< s1car s2car)
+                  (cons-stream s1car (merge-weighted (stream-cdr s1) s2 weight)))
+                 (else
+                  (cons-stream s2car (merge-weighted s1 (stream-cdr s2) weight))))))))
+(define (weighted-pairs s t weight)
   (cons-stream
-   (cons (stream-car s1) (stream-car s2))
-   (interleave (stream-map cons (stream-cdr s1) (stream-cdr s2))
-	       (sloppy-conser s1 (stream-cdr s2))))) ;Deja Vu
-(define (spinning-interleaver streams)
-  (cons-stream
-   (stream-car (car streams))
-   (spinning-interleaver (append (cdr streams) (list (stream-cdr (car streams)))))))
-(define (visible something)
-  (display something)
-  something)
-(define (sloppy-lister . argst)
-  (define (cdr-every argst)
-    (map stream-cdr argst))
-  (define (pos-stream argst)
-    (if (null? argst)
-	'()
-	(cons
-	 (cdr-every argst)
-	 (map (lambda (x) (cons (car argst) x)) (pos-stream (cdr argst))))))
-  (cons-stream
-   (apply list
-	  (map stream-car argst))
-   (spinning-interleaver
-    (map (lambda (x) (apply sloppy-lister x))
-	 (pos-stream (map stream-cdr argst))))))
-(define (triples)
-  (stream-filter (lambda (lis)
-		   (= (square (caddr lis))
-		      (+ (square (cadr lis))
-			 (square (car lis)))))
-		 (sloppy-lister integers integers integers)))
+   (list (stream-car s) (stream-car t))
+   (merge-weighted
+    (stream-map (lambda (x) (list (stream-car s) x))
+		(stream-cdr t))
+    (weighted-pairs (stream-cdr s) (stream-cdr t) weight)
+    weight)))
+(define a (weighted-pairs integers integers (lambda (x) (apply + x))))
+(define res-int
+  (stream-filter
+   (lambda (x)
+     (not (or (= (remainder x 2) 0)
+	      (= (remainder x 3) 0)
+	      (= (remainder x 5) 0))))
+   integers))
+(define b (weighted-pairs res-int res-int
+			  (lambda (x)
+			    (let ((i (car x))
+				  (j (cadr x)))
+			      (+ (* 2 i) (* 3 j) (* 5 i j))))))
+
+3.71
+(define (sum-cube i j)
+  (+ (* i i i) (* j j j)))
+(define (scube-lst x)
+  (apply sum-cube x))
+(define potential-ramanuzan
+  (weighted-pairs integers integers
+		  scube-lst))
+(define ramanuzan
+  (stream-map
+   (lambda (x) (scube-lst (car x)))
+   (stream-filter (lambda (x)
+		    (= (scube-lst (car x))
+		       (scube-lst (cdr x))))
+		  (stream-map cons
+			      (stream-cdr potential-ramanuzan)
+			      potential-ramanuzan))))
+(display-stream ramanuzan 5) ;voila!
+
+3.72
+(define (sum-square i j)
+  (+ (* i i) (* j j)))
+(define (ssq-lst lst)
+  (apply sum-square lst))
+(define culi
+  (weighted-pairs integers integers ssq-lst))
+(define squaring
+  (stream-map
+   (lambda (x) (ssq-lst (car x)))
+   (stream-filter (lambda (x)
+		    (apply = (map ssq-lst x)))
+		  (stream-map list
+			      (stream-cdr (stream-cdr culi))
+			      (stream-cdr culi)
+			      culi))))
+
+#3.73~3.74
+(define (integral integrand initial-value dt)
+  (define int
+    (cons-stream initial-value
+		 (add-streams (scale-stream integrand dt)
+			      int)))
+  int)
+
+3.73
+(define (RC R C dt)
+  (lambda (i v0)
+    (add-streams
+     (repeat v0)
+     (scale-stream (integral i 0 dt) (/ 1 C))
+     (scale-stream i R))))
+
+3.74
+(define zero-crossings
+  (stream-map sign-change-detector sense-data (cons-stream 0 sense-data)))
+
+3.75
+(define (make-zero-crossings input-stream last-value)
+  (let ((avpt (/ (+ (stream-car input-stream) last-value) 2)))
+    (cons-stream (sign-change-detector avpt last-value)
+		 (make-zero-crossings (stream-cdr input-stream)
+				      (stream-car input-stream)))))
+
+3.76
+(define (smooth st) (scale-stream (add-streams st (stream-cdr st)) (/ 1 2)))
+
+(define (make-zero-crossings input-stream last-value)
+  (let ((smooth-stream (smooth input-stream)))
+    (cons-stream (sign-change-detector (stream-car smooth-stream)
+				       last-value)
+		 (make-zero-crossings (stream-cdr smooth-stream)
+				      (stream-car smooth-stream)))))
+
+3.77
