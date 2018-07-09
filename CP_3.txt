@@ -921,3 +921,81 @@ partial-sums : stream implementation
 				      (stream-car smooth-stream)))))
 
 3.77
+(define (integral delayed-integrand initial-value dt)
+  (cons-stream initial-value
+	       (let ((integrand (force delayed-integrand)))
+		 (if (stream-null? integrand)
+		     the-empty-stream
+		     (integral (delay (stream-cdr integrand))
+			       (+ (* dt (stream-car integrand))
+				  initial-value)
+			       dt)))))
+(define (solve f y0 dt)
+  (define (y) (integral (delay (dy)) y0 dt))
+  (define (dy) (stream-map f (y)))
+  (y))
+(stream-ref (solve (lambda (y) y) 1 0.001) 1000)
+
+3.78
+(define (solve-2nd y0 dy0 a b dt)
+  (define (y) (integral (dy) y0 dt))
+  (define (dy) (delay (integral (ddy) dy0 dt)))
+  (define (ddy) (delay (add-streams (scale-stream (force (dy)) a) (scale-stream (y) b))))
+  (y))
+(stream-ref (solve-2nd 0 1 0 -1 0.01) 314)
+
+
+(define (solve-2nd y0 dy0 a b dt)
+  (define dy (delay (integral ddy dy0 dt)))
+  (define ddy (delay (add-streams (scale-stream (force dy) a) (scale-stream y b))))
+  (define y (integral dy y0 dt))
+  y)
+
+3.79
+(define (solve-2nd f y0 dy0 dt)
+  (define dy (delay (integral ddy dy0 dt)))
+  (define ddy (delay (stream-map f dy y)))
+  (define y (integral dy y0 dt))
+  y)
+
+
+3.80
+(define (RLC R L C dt)
+  (lambda (Vc0 iL0)
+    (define Vc
+      (delay (integral dVc Vc0 dt)))
+    (define dVc
+      (delay (scale-stream (force iL) (/ -1 C))))
+    (define iL
+      (delay (integral diL iL0 dt)))
+    (define diL
+      (delay (add-streams
+	      (scale-stream (force Vc) (/ 1 L))
+	      (scale-stream (force iL) (/ (- R) L)))))
+    (cons (force Vc) (force iL))))
+(define rlc1 ((RLC 1 1 0.2 0.1) 10 0))
+
+3.81
+(define (generate C A X) (list C A (mod (+ (* A X) C) C)))
+(define (make-reset-value C A X)
+  (lambda (m n o) (list C A X)))
+(define (build-randstream input-stream)
+  (define randstat-stream
+    (cons-stream (list 127 50 64)
+		 (stream-map apply input-stream randstat-stream)))
+  (stream-map (lambda (x) (caddr x)) randstat-stream))
+
+3.82
+(define (random-in-range low high)
+  (let ((range (- high low)))
+    (+ low (random range))))
+(define (random-range-stream low high)
+  (stream-map random-in-range (repeat low) (repeat high)))
+(define (monte-integral P x1 x2 y1 y2)
+  (define xs (random-range-stream x2 x1))
+  (define ys (random-range-stream y2 y1))
+  (define succeeded? (stream-map (lambda (x y) (if (P x y) 1 0)) xs ys))
+  (define successes (partial-sums succeeded?))
+  (scale-stream (div-streams successes integers) (* (- x1 x2) (- y1 y2))))
+(define (circle x y) (< (+ (* x x) (* y y)) 9))
+(define pis (scale-stream (monte-integral circle 10.0 -5.0 4.0 -6.0) (/ 1 9)))
