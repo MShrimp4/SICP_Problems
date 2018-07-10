@@ -269,3 +269,4 @@
       (safe-queen? (car positions) (cdr positions))
       (errorf 'safe? "Well, that was unexpected. My bad.")))
 
+2.43
