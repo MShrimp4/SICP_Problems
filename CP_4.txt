@@ -244,40 +244,50 @@
 	(if scan-val
 	    (set-car! scan-val val)
 	    (add-binding-to-frame! var val frame)))))
-  (define (scan-frame-full vars vals)
+  (define (scan-frame-full var vars vals)
     (cond ((null? vars) #f)
-	  ((eq? var (car vars)) (cons vars vals))
-	  (else (scan-frame-full (cdr vars) (cdr vals)))))
-  (define (env-loop-full env)
+	  ((eq? var (car vars)) 'found)
+	  (else
+	   (let ((pick (scan-frame-full var (cdr vars) (cdr vals))))
+	     (if (eq? pick 'found) (cons vars vals) pick)))))
+  (define (env-loop-full var env)
     (if (eq? env the-empty-environment)
 	#f
 	(let ((frame (first-frame env)))
-	  (let ((scanned (scan-frame
+	  (let ((scanned (scan-frame-full
+			  var
 			  (frame-variables frame)
 			  (frame-values frame))))
-	    (if scanned
-		scanned
-		(env-loop-full (enclosing-environment env)))))))
+	    (cond
+	     ((eq? scanned 'found) (cons 'found env))
+	     (scanned scanned)
+	     (else (env-loop-full var (enclosing-environment env))))))))
   (define (make-unbound! var env)
-    (let ((scanned (env-loop-full env)))
-      (if scanned
-	  (let ((sc-var (car scanned))
-		(sc-val (cdr scanned)))
-	    (set-car! sc-var (cadr sc-var))
-	    (set-cdr! sc-var (cddr sc-var))
-	    (set-car! sc-val (cadr sc-val))
-	    (set-cdr! sc-val (cddr sc-val))
-	    'removed)
-	  'already-removed)))
+    (let ((scanned (env-loop-full var env)))
+      (cond ((not scanned) 'false)
+	    ((eq? (car scanned) 'found)
+	     (let ((frame (first-frame (cdr scanned)))
+		   (target-env (cdr scanned)))
+	       (set-car! target-env
+			 (make-frame
+			  (cdr (frame-variables frame))
+			  (cdr (frame-values frame))))
+	       'true))
+	    (scanned
+	     (let ((sc-var (car scanned))
+		   (sc-val (cdr scanned)))
+	       (set-cdr! sc-var (cddr sc-var))
+	       (set-cdr! sc-val (cddr sc-val))
+	       'true))
+	    (else 'false))))
   (define (unbinder? exp)
     (tagged-list? exp 'unbind!))
   (define (unbind exp env)
     (let ((removed-var (cadr exp)))
-      (make-unbound! var env)))
+      (make-unbound! removed-var env)))
   (define (eval exp env);_eval_
     (cond
-     ((self-evaluating? exp)
-      exp)
+     ((self-evaluating? exp) exp)
      ((variable? exp) (lookup-variable-value exp env))
      ((quoted? exp) (text-of-quotation exp))
      ((assignment? exp) (eval-assignment exp env))
