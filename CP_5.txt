@@ -1,0 +1,57 @@
+5.2
+(controller
+ test-cnt
+    (test (op >) (reg cnt) (reg n))
+    (branch (label fac-done))
+    (assign prod (op *) (reg cnt) (reg prod))
+    (assign cnt (op ++) (reg cnt))
+    (goto (label test-cnt)) 
+ fac-done)
+
+5.3
+(controller
+    (assign (reg x) (op read))
+    (assign (reg guess) (const 1.0))
+ sqrt-loop
+    (assign sq-g (op square) (reg guess))
+    (assign tmp (op -) (reg sq-g) (reg x))
+    (assign tmp (op abs) (reg tmp))
+    (test (op <) (reg tmp) (const 0.001))
+    (branch (label sqrt-done))
+    (assign tmp (op /) (reg x) (reg guess))
+    (assign guess (op average) (reg guess) (reg tmp))
+    (goto sqrt-loop)
+ sqrt-done
+    (perform (op print) (reg guess))
+)
+5.4
+(controller
+    (assign continue (label expt-done))
+ exp-loop
+    (test (op =) (reg n) (const 1))
+    (branch (label base-case))
+    (save continue)
+    (assign continue (label expt))
+    (assign n (op -) (reg n) (reg 1))
+    (goto (label exp-loop))
+ expt
+    (restore continue)
+    (assign val (op *) (reg val) (reg b))
+    (goto (reg continue))
+ base-case
+    (assign val (const 1))
+    (goto (reg continue))
+ expt-done
+)
+(controller
+    (assign prod (const 1))
+ exp-loop
+    (test (op =) (reg n) (const 0))
+    (branch (label end-expt))
+    (assign n (op -) (reg n) (reg 1))
+    (assign prod (op *) (reg prod) (reg b))
+    (goto (label exp-loop))
+ end-expt)
+5.6
+;after-fib restore/save continue
+5.7 ;delayed
