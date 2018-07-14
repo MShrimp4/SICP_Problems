@@ -386,6 +386,14 @@
   (let ((removed-var (cadr exp)))
     (make-unbound! var env)))
 
+;4.16~20 : Meta_Eval.scm
+(define (f x)
+  ((lambda (even? odd?)
+     (even? even? odd? x))
+   (lambda (ev? od? n)
+     (if (= n 0) #t (od? ev? od? (- n 1))))
+   (lambda (ev? od? n)
+     (if (= n 0) #f (ev? ev? od? (- n 1))))))
 
 
 
@@ -872,7 +880,201 @@
   (define y (integral dy y0 dt))
   (define dy (map f y))
   y)
-(list-ref (solve (lambda (x) x) 1 0.001) 1000)
+n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 
 4.32
 ;map nested lists
+
+
+;
+
+
+;4.35~
+(define (require p)
+  (if (not p) (amb)))
+(define (an-element-of items)
+  (require (not (null? items)))
+  (amb (car items) (an-element-of (cdr items))))
+(define (an-integer-starting-from n)
+  (amb n (an-integer-starting-from (+ n 1))))
+
+4.35
+(define (an-integer-between lo hi)
+  (if (< hi lo)
+      '()
+      (amb lo (an-integer-between (+ lo 1) hi))))
+
+4.36
+(define (a-pythagorean-triple)
+  (let ((k (an-integer-starting-from 1))
+	(j (an-integer-between 1 k))
+	(i (an-integer-between 1 j)))
+    (require (= (+ (* i i) (* j j)) (* k k)))
+    (list i j k)))
+
+4.37
+(define (map func lst)
+  (if (null? lst)
+      '()
+      (cons (func (car lst)) (map func (cdr lst)))))
+(define (for-each func lst)
+  (if (null? lst)
+      #t
+      (begin
+	(func (car lst))
+	(for-each func (cdr lst)))))
+(define (father lst) (car lst))
+(define (daughter lst) (car (cdr lst)))
+(define (yacht lst) (car (cdr (cdr lst))))
+(define (find whose name FDY)
+  (cond ((null? FDY) (amb))
+	((eq? name (whose (car FDY)))
+	 (car FDY))
+	(else (find whose name (cdr FDY)))))
+(define (yacht-of name FDY) (yacht (find father name FDY)))
+(define (daughter-of name FDY) (daughter (find father name FDY)))
+(define (father-of name FDY) (father (find daughter name FDY)))
+(define (daughters FDY) (map daughter FDY))
+(define (yachts FDY) (map yacht FDY))
+(define (yacht-problem)
+  (let ((names (list 'Mary 'Gabrielle 'Lorna 'Rosalind 'Melissa)))
+    (let ((FDY (list
+		(list 'Moore 'Mary 'Lorna)
+		(list 'Barnacle (an-element-of names) 'Gabrielle)
+		(list 'Colonel (an-element-of names) 'Melissa)
+		(list 'Hall (an-element-of names) 'Rosalind)
+		(list 'Parker (an-element-of names) (an-element-of names)))))
+      (require (distinct? (yachts FDY)))
+      (for-each (lambda (d y) (require (distinct? (cons d y))))
+		(daughters FDY) (yachts FDY))
+      (require (eq? (yacht-of 'Colonel FDY)
+		    (daughter-of 'Barnacle FDY)))
+      (require (eq? (daughter-of 'Parker FDY)
+		    (father-of 'Gabrielle FDY)))
+      (require (distinct? (daughters FDY))))))
+
+4.44
+(define (construct-queen possible n)
+  (define (iter possible n board)
+    (if (= n 0)
+	board
+	(let ((new-queen (cons
+			  (an-element-of possible)
+			  (an-element-of possible))))
+	  (require (not (conflict? new-queen board)))
+	  (cons new-queen board))))
+  (iter possible n '()))
+(define (8queen) (construct-queen (an-integer-between 1 8) 8))
+
+
+;;;;;
+
+
+4.55
+(supervisor ?x (Bitdiddle Ben)) ;a
+(job ?x (<division> . ?type)) ;b
+(address ?x (Slumerville . ?type));c
+
+4.56
+(and
+ (supervisor ?x (Bitdiddle Ben))
+ (address ?x ?addr)) ;a
+(and
+ (salary (Bitdiddle Ben) ?amount-BBD)
+ (salary ?x ?amount)
+ (lisp-value < ?amount ?amount-BBD)) ;b
+(and
+ (supervisor ?person ?su)
+ (not (job ?su (computer . ?any)))
+ (job ?su ?su-job));c
+
+4.57
+(rule (can-do-job-rec ?job1 ?job2)
+      (or
+       (can-do-job ?job1 ?job2)
+       (and
+	(can-do-job ?mid-job ?job2)
+	(can-do-job-rec ?job1 ?mid-job))))
+(rule (can-replace-with ?person1 ?person2)
+      (or
+       (and
+	(job ?person1 ?job)
+	(job ?person2 ?job))
+       (and
+	(job ?person1 ?job1)
+	(job ?person2 ?job2)
+	(can-do-job-rec ?job1 ?job2))))
+;;;;;
+(can-replace-with ?person (Fect Cy D));a
+(and (can-replace-with ?p1 ?p2)
+     (salary ?p1 ?s1)
+     (salary ?p2 ?s2)
+     (lisp-value > ?s1 ?s2)
+     ;(not (same? ?p1 ?p2)) ;;unused : Lisp-value guarantees
+     )
+(rule (big-shot ?person)
+      (and
+       (job ?person (?division . ?any))
+       (job ?super (?division . ?any))
+       (not (supervisor ?person ?super))
+       (not (same ?person ?super))))
+
+4.59
+(meeting ?any (Friday ?time)) ;a
+(rule (meeting-time ?person ?day-and-time)
+      (or
+       (meeting whole-company ?day-and-time)
+       (and
+	(job ?person (?division . ?any))
+	(meeting ?division ?day-and-time))));b
+(meeting-time (Hacker Alyssa P) (Wednesday ?time));c
+
+4.60
+;Both person1 and person2 can match any people if !=
+
+(and
+ (lives-near ?p1 ?p2)
+ (lisp-value preceding? ?p1 ?p2));preceding alphabetic order etc.
+
+4.62
+(rule (last-pair (?head) ?x))
+(rule (last-pair (?head . ?tail) ?x)
+      (last-pair ?tail ?x))
+
+4.63
+(rule (son-of ?parent ?son)
+      (or
+       (son ?parent ?son)
+       (and
+	(or
+	 (wife ?parent ?other-parent)
+	 (wife ?other-parent ?parent))
+	(son ?other-parent ?son))))
+(rule (grandson-of ?grandparent ?grandson)
+      (and (son-of ?grandparent ?parent)
+	   (son-of ?parent ?grandson)))
+
+(grandson-of Cain ?grandsons)
+(son-of Lamech ?sons)
+(grandson-of Methushael ?grandsons)
+
+4.68
+(rule (rev () ?rev ?rev))
+(rule (rev (?h . ?t) ?r rev)
+      (rev ?t (?h. ?r) rev))
+(rule (reverse ?lst ?reverse)
+      (rev ?lst () ?reverse))
+
+(rule (reverse () ()))
+(rule (reverse (?h . ?t) ?reverse)
+      (and
+       (reverse ?t ?rev)
+       (append-to-form  ?rev ?h ?reverse)))
+
+4.69
+(rule ((grandson) ?x ?y)
+      (grandson ?x ?y))
+(rule ((great . ?rel) ?x ?y)
+      (and
+       (son-of ?x ?sx)
+       (?rel ?sx ?y)))

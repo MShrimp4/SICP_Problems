@@ -1,11 +1,19 @@
 (define (meta-eval eval-in-underlying-scheme apply-in-underlying-scheme)
   (define (show x)
-    (display x)
+    (display
+     (parameterize ((print-graph #t)) (format "~s" (hide-func x))))
     (newline)
     x)
+  (define (hide-func val)
+    (cond ((compound-procedure? val) '<compound-procedure>)
+	  ((primitive-procedure? val) '<primitive-procedure>)
+	  (else val)))
   (define (show-env env)
+    (display (format "------- ENVIRONMENT -------~%"))
     (for-each (lambda (var val)
-		(show (format "var : ~s, val : ~s" var val)))
+		(parameterize ((print-graph #t))
+		  (display (format "[var : ~s, val : ~s]~%"
+				   var (hide-func val)))))
 	      (caar env)
 	      (cdar env)))
   (define (self-evaluating? exp)
@@ -34,7 +42,7 @@
 	(apply-in-underlying-scheme
 	 make-lambda
 	 (cdadr exp);(define (sq x) (* x x)) -> x
-	 (scan-out-defines (cddr exp)))));(define (sq x) (* x x)) -> (* x x)
+	 (cddr exp))));(define (sq x) (* x x)) -> (* x x)
   (define (nestdefs->let defs body)
     (define (iter varbind defs body)
       (if (null? defs)
@@ -56,7 +64,7 @@
 		(cdr body))
 	  (if (null? defs)
 	      body
-	      (nestdefs->let defs body))))
+	      (list (nestdefs->let defs body)))))
     (iter '() body))
   (define (eval-definition exp env)
     (define-variable! (definition-variable exp)
@@ -202,6 +210,20 @@
 	   make-let (list (car binds)) body-lst)
 	  (make-let (list (car binds)) (rec (cdr binds) body-lst))))
     (rec (let-binds exp) (let-body-lst exp)))
+  (define (letrec? exp) (tagged-list? exp 'letrec))
+  (define (letrec->let-sets exp)
+    (define (re-bind bind body)
+      (append
+       (map (lambda (b) (cons 'set! b)) bind)
+       body))
+    (define (bind-nothing bind)
+      (map (lambda (b) (list (car b) '*unassigned*)) bind))
+    (let ((bind (let-binds exp))
+	  (bodyl (let-body-lst exp)))
+      (apply-in-underlying-scheme
+       make-let
+       (bind-nothing bind)
+       (re-bind bind bodyl))))
   (define (do? env) (tagged-list? env 'do))
   (define (do-vars binds) (map car binds))
   (define (do-init binds) (map cadr binds))
@@ -222,7 +244,7 @@
   (define (do->combination exp)
     (apply-in-underlying-scheme make-do (cdr exp)))
   (define (make-procedure parameters body env)
-    (list 'procedure parameters body env))
+    (list 'procedure parameters (scan-out-defines body) env))
   (define (compound-procedure? p)
     (tagged-list? p 'procedure))
   (define (procedure-parameters p) (cadr p))
@@ -320,6 +342,7 @@
     (let ((removed-var (cadr exp)))
       (make-unbound! removed-var env)))
   (define (eval exp env);_eval_
+    (show-env env)
     (cond
      ((self-evaluating? exp) exp)
      ((variable? exp) (lookup-variable-value exp env))
@@ -333,6 +356,7 @@
 		      env))
      ((let? exp) (eval (let->combination exp) env))
      ((let*? exp) (eval (let*->nested-lets exp) env))
+     ((letrec? exp) (eval (letrec->let-sets exp) env))
      ((unbinder? exp) (unbind exp env))
      ((do? exp) (eval (do->combination exp) env))
      ((begin? exp)
@@ -417,8 +441,6 @@
   (driver-loop))
 (define (m-eval) (meta-eval eval apply))
 
-
-
 ;(meta-eval eval apply)
 (do ((n 1 (+ n 1)))
     ((= n 10) #f)
@@ -429,7 +451,7 @@
     (if (= count 0)
 	(begin (display prev) (newline) prev)
 	(fib (- count 1) cur (+ prev cur)))))
-(define (f x)
+(define (f x) ;4.16
   (define (even? n)
     (if (= n 0)
 	true
@@ -439,3 +461,15 @@
 	false
 	(even? (- n 1))))
   (even? x))
+(define (f x)
+  (letrec ((even?
+	    (lambda (n)
+	      (if (= n 0)
+		  true
+		  (odd? (- n 1)))))
+	   (odd?
+	    (lambda (n)
+	      (if (= n 0)
+		  false
+		  (even? (- n 1))))))
+    (even? x)))

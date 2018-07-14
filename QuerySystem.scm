@@ -97,11 +97,9 @@
      (else
       (display (stream-car st))
       (newline)
-      (if (not (stream-null? (stream-cdr st))) (display " "))
       (iter (stream-cdr st) (- until 1)))))
-  (display "(")
+  (newline)
   (iter st until)
-  (display ")")
   (newline))
 
 
