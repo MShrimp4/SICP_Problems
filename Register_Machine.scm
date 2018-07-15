@@ -1,4 +1,5 @@
-#lang sicp
+(define (tagged-list? lst tag)
+  (eq? (car lst) tag))
 (define (make-machine register-names ops controller-text)
   (let ((machine (make-new-machine)))
     (for-each (lambda (register-name)
@@ -68,7 +69,7 @@
         (let ((val (assoc name register-table)))
           (if val
               (cadr val)
-              (error 'lookup-register "Unknown register: ~s" name))))
+              (errorf 'lookup-register "Unknown register: ~s" name))))
       (define (execute)
         (let ((insts (get-contents pc)))
           (if (null? insts)
@@ -289,4 +290,3 @@
     (if val
         (cadr val)
         (errorf 'lookup-prim "Unknown operation: ~s" symbol))))
-

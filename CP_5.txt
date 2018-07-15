@@ -1,5 +1,6 @@
 5.2
 (controller
+    (assign cnt (const 1))
  test-cnt
     (test (op >) (reg cnt) (reg n))
     (branch (label fac-done))
@@ -54,4 +55,66 @@
  end-expt)
 5.6
 ;after-fib restore/save continue
-5.7 ;delayed
+5.7
+;5.2
+(define fac-machine
+  (make-machine
+   '(cnt n prod)
+   (list (list '* *)
+	 (list '++ (lambda (x) (+ x 1)))
+	 (list '> >))
+   '((assign cnt (const 1))
+     (assign prod (const 1))
+     test-cnt
+     (test (op >) (reg cnt) (reg n))
+     (branch (label fac-done))
+     (assign prod (op *) (reg cnt) (reg prod))
+     (assign cnt (op ++) (reg cnt))
+     (goto (label test-cnt)) 
+     fac-done)))
+(set-register-contents! fac-machine 'n 5)
+(start fac-machine)
+(get-register-contents fac-machine 'prod)
+;5.4
+(define expt-rec-machine
+  (make-machine
+   '(n b continue val)
+   (list (list '= =) (list '- -) (list '* *))
+   '((assign continue (label expt-done))
+     exp-loop
+     (test (op =) (reg n) (const 0))
+     (branch (label base-case))
+     (save continue)
+     (assign continue (label expt))
+     (assign n (op -) (reg n) (const 1))
+     (goto (label exp-loop))
+     expt
+     (restore continue)
+     (assign val (op *) (reg val) (reg b))
+     (goto (reg continue))
+     base-case
+     (assign val (const 1))
+     (goto (reg continue))
+     expt-done)))
+(set-register-contents! expt-rec-machine 'n 3)
+(set-register-contents! expt-rec-machine 'b 5)
+(start expt-rec-machine)
+(get-register-contents expt-rec-machine 'val)
+
+(define expt-iter-machine
+  (make-machine
+   '(n b prod)
+   (list (list '= =) (list '- -) (list '* *))
+   '((assign prod (const 1))
+     exp-loop
+     (test (op =) (reg n) (const 0))
+     (branch (label end-expt))
+     (assign n (op -) (reg n) (const 1))
+     (assign prod (op *) (reg prod) (reg b))
+     (goto (label exp-loop))
+     end-expt)))
+(set-register-contents! expt-iter-machine 'n 3)
+(set-register-contents! expt-iter-machine 'b 5)
+(start expt-iter-machine)
+(get-register-contents expt-iter-machine 'prod)
+
