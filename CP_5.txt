@@ -75,7 +75,8 @@
 (set-register-contents! fac-machine 'n 5)
 (start fac-machine)
 (get-register-contents fac-machine 'prod)
-;5.4
+
+;;;5.4
 (define expt-rec-machine
   (make-machine
    '(n b continue val)
@@ -118,3 +119,329 @@
 (start expt-iter-machine)
 (get-register-contents expt-iter-machine 'prod)
 
+5.8
+(define (extract-labels text receive)
+  (if (null? text)
+      (receive '() '())
+      (extract-labels (cdr text)
+       (lambda (insts labels)
+         (let ((next-inst (car text)))
+           (if (symbol? next-inst)
+	       (if (memq next-inst (map car labels))
+		   (errorf 'extract-labels "Duplicate Label : ~s"
+			   next-inst)
+		   (receive insts
+                       (cons (make-label-entry next-inst
+                                               insts)
+                             labels)))
+               (receive (cons (make-instruction next-inst)
+                              insts)
+                        labels)))))))
+
+5.9
+(define (make-operation-exp exp machine labels operations)
+  (if (memq 'label (map car exp))
+   (errorf 'make-operation-exp "Label cannot be used in ops ~% ~s" exp)
+   (let ((op (lookup-prim (operation-exp-op exp) operations))
+         (aprocs
+          (map (lambda (e)
+                 (make-primitive-exp e machine labels))
+               (operation-exp-operands exp))))
+     (lambda ()
+       (apply op (map (lambda (p) (p)) aprocs))))))
+       
+
+5.10
+;;;;had to modify extract-labels
+;;;;can also use (label <label>) instead of just <label>
+(define (maybe-label inst)
+  (if (and (pair? inst) (eq? 'label (car inst)))
+      (cadr inst) ; (label smth) -> smth
+      inst))
+(define (extract-labels text receive)
+  (if (null? text)
+      (receive '() '())
+      (extract-labels (cdr text)
+       (lambda (insts labels)
+         (let ((next-inst (maybe-label (car text))))
+           (if (symbol? next-inst)
+	       (if (memq next-inst (map car labels))
+		   (errorf 'extract-labels "Duplicate Label : ~s"
+			   next-inst)
+		   (receive insts
+                       (cons (make-label-entry next-inst
+                                               insts)
+                             labels)))
+               (receive (cons (make-instruction next-inst)
+                              insts)
+                   labels)))))))
+
+5.11
+;;;a
+afterfib-n-2
+(restore n)
+(restore continue)
+(assign val (op +) (reg val) (reg n))
+(goto (reg continue))
+;;;b
+(define (make-save inst machine stack pc)
+  (let ((reg (get-register machine
+                           (stack-inst-reg-name inst))))
+    (lambda ()
+      (push stack (cons reg (get-contents reg)))
+      (advance-pc pc))))
+(define (make-restore inst machine stack pc)
+  (let ((reg (get-register machine
+                           (stack-inst-reg-name inst))))
+    (lambda ()
+      (let ((out (pop stack)))
+	(if (eq? (car out) reg)
+	    (set-contents! reg (cdr out))
+	    (errorf 'restore "Restoring Destination Differ")))    
+      (advance-pc pc))))
+;;;c
+;;;Used hashmap instead. EFF
+(define (make-stack)
+  (let ((st-table (make-hash-table)))
+    (define (push x reg)
+      (let ((s (get-hash-table st-table reg #f)))
+	(if s
+	    (put-hash-table! st-table reg (cons x s))
+	    (put-hash-table! st-table reg (list x)))))
+    (define (pop reg)
+      (let ((s (get-hash-table st-table reg '())))
+	(if (null? s)
+            (errorf 'stack "Empty stack -- POP")
+            (let ((top (car s)))
+              (put-hash-table! st-table reg (cdr s))
+              top))))
+    (define (initialize)
+      (set! s '())
+      'done)
+    (define (dispatch message)
+      (cond ((eq? message 'push) push)
+            ((eq? message 'pop) pop)
+            ((eq? message 'initialize) (initialize))
+            (else (errorf 'STACK "Unknown request: ~s"
+                         message))))
+    dispatch))
+(define (pop stack reg)
+  ((stack 'pop) reg))
+(define (push stack value reg)
+  ((stack 'push) value reg))
+(define (make-save inst machine stack pc)
+  (let ((reg (get-register machine
+                           (stack-inst-reg-name inst))))
+    (lambda ()
+      (push stack (get-contents reg) (stack-inst-reg-name inst))
+      (advance-pc pc))))
+(define (make-restore inst machine stack pc)
+  (let ((reg (get-register machine
+                           (stack-inst-reg-name inst))))
+    (lambda ()
+      (set-contents! reg (pop stack (stack-inst-reg-name inst)))    
+      (advance-pc pc))))
+(define (make-new-machine)
+  (let ((pc (make-register 'pc))
+        (flag (make-register 'flag))
+        (stack (make-stack))
+        (the-instruction-sequence '()))
+    (let ((the-ops
+           (list (list 'initialize-stack
+            (lambda () (stack 'initialize)))
+      (list 'print-stack-statistics
+            (lambda () (stack 'print-statistics)))))
+          (register-table
+           (list (list 'pc pc) (list 'flag flag))))
+      (define (allocate-register name)
+        (if (assoc name register-table)
+            (errorf 'allocate-register "Multiply defined register: ~s" name)
+            (set! register-table
+                  (cons (list name (make-register name))
+                        register-table)))
+        'register-allocated)
+      (define (lookup-register name)
+        (let ((val (assoc name register-table)))
+          (if val
+              (cadr val)
+              (errorf 'lookup-register "Unknown register: ~s" name))))
+      (define (execute)
+        (let ((insts (get-contents pc)))
+          (if (null? insts)
+              'done
+              (begin
+                ((instruction-execution-proc (car insts)))
+                (execute)))))
+      (define (dispatch message)
+        (cond ((eq? message 'start)
+               (set-contents! pc the-instruction-sequence)
+               (execute))
+              ((eq? message 'install-instruction-sequence)
+               (lambda (seq) (set! the-instruction-sequence seq)))
+              ((eq? message 'allocate-register) allocate-register)
+              ((eq? message 'get-register) lookup-register)
+              ((eq? message 'install-operations)
+               (lambda (ops) (set! the-ops (append the-ops ops))))
+              ((eq? message 'stack) stack)
+              ((eq? message 'operations) the-ops)
+              (else (errorf 'Machine "Unknown request: ~s" message))))
+      dispatch)))
+
+5.13
+
+(define (make-machine ops controller-text)
+  (let ((machine (make-new-machine)))
+    ((machine 'install-operations) ops)    
+    ((machine 'install-instruction-sequence)
+     (assemble controller-text machine))
+    machine))
+(define (make-new-machine)
+  (let ((pc (make-register 'pc))
+        (flag (make-register 'flag))
+        (stack (make-stack))
+        (the-instruction-sequence '()))
+    (let ((the-ops
+           (list (list 'initialize-stack
+            (lambda () (stack 'initialize)))
+      (list 'print-stack-statistics
+            (lambda () (stack 'print-statistics)))))
+          (register-table
+           (list (list 'pc pc) (list 'flag flag))))
+      (define (allocate-register name)
+        (if (assoc name register-table)
+            (errorf 'allocate-register "Multiply defined register: ~s" name)
+            (set! register-table
+                  (cons (list name (make-register name))
+                        register-table)))
+        'register-allocated)
+      (define (lookup-register name)
+        (let ((val (assoc name register-table)))
+          (if val
+              (cadr val)
+              (begin
+		(allocate-register name)
+		(lookup-register name)))))
+      (define (execute)
+        (let ((insts (get-contents pc)))
+          (if (null? insts)
+              'done
+              (begin
+                ((instruction-execution-proc (car insts)))
+                (execute)))))
+      (define (dispatch message)
+        (cond ((eq? message 'start)
+               (set-contents! pc the-instruction-sequence)
+               (execute))
+              ((eq? message 'install-instruction-sequence)
+               (lambda (seq)
+		 (set! the-instruction-sequence seq)))
+              ((eq? message 'allocate-register) allocate-register)
+              ((eq? message 'get-register) lookup-register)
+              ((eq? message 'install-operations)
+               (lambda (ops) (set! the-ops (append the-ops ops))))
+              ((eq? message 'stack) stack)
+              ((eq? message 'operations) the-ops)
+              (else (errorf 'Machine "Unknown request: ~s" message))))
+      dispatch)))
+
+5.14(define recfact
+  (make-machine
+   '(n val continue)
+   (list (list '= =) (list '- -) (list '* *))
+   '((perform (op initialize-stack))
+     (assign continue (label fact-done))     
+     fact-loop
+     (test (op =) (reg n) (const 1))
+     (branch (label base-case))
+     (save continue)
+     (save n)
+     (assign n (op -) (reg n) (const 1))
+     (assign continue (label after-fact))
+     (goto (label fact-loop))
+     after-fact
+     (restore n)
+     (restore continue)
+     (assign val (op *) (reg n) (reg val))   
+     (goto (reg continue))               
+     base-case
+     (assign val (const 1))              
+     (goto (reg continue))        
+     fact-done
+     (perform (op print-stack-statistics)))))
+(do ((n 1 (+ n 1)))
+    ((= n 10) 'done&done)
+  (display (format "~%n = ~s ~%~%" n))
+  (set-register-contents! recfact 'n n)
+  (start recfact)
+  (get-register-contents recfact 'val)) ; total/max = 2n-2
+
+~5.20: Register_Machine*.scm
+
+5.21
+;;;a ## tree on (reg search)
+(controller
+ (assign continue (label end-count-leaves))
+ rec-search
+ (test (op null?) (reg search))
+ (branch (label just-zero))
+ (test (op pair?) (reg search))
+ (branch (label rec-pair))
+ (goto (label just-one))
+ rec-pair
+ (save continue);->
+ (save search)
+ (assign search (op car) (reg search))
+ (assign continue (label rec-after-car))
+ (goto (label rec-search))
+ rec-after-car
+ (load search)
+ (assign search (op cdr) (reg search))
+ (save val);car
+ (assign continue (label rec-after-cdr))
+ (goto (label rec-search))
+ rec-after-cdr
+ (load sum);car val
+ (load continue);<-
+ (assign val (op +) (reg sum) (reg val))
+ (goto (reg continue))
+ just-one
+ (assign val (const 1))
+ (goto (reg continue))
+ just-zero
+ (assign val (const 0))
+ (goto (reg continue))
+ end-count-leaves)
+;;;b
+(controller
+ (assign continue (label end-count-leaves))
+ (assign n (const 0))
+ ct-iter
+ (test (op null?) (reg search))
+ (branch (label n))
+ (test (op pair?) (reg search))
+ (branch (label pair))
+ (goto (label n+1))
+ pair
+ (save continue)
+ (save search)
+ (assign continue (label after-car))
+ (assign search (op car) (reg search))
+ (goto (label ct-iter))
+ after-car
+ (load search)
+ (load continue)
+ (assign n (reg val))
+ (assign search (cdr search))
+ (goto (label ct-iter))
+ n
+ (assign val (reg n))
+ (goto (reg continue))
+ n+1
+ (assign val (op +) (reg n) (const 1))
+ (goto (reg continue))
+ end-count-leaves)
+
+5.22
+;;;append!
+(controller
+ )
