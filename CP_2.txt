@@ -271,4 +271,370 @@
 
 ;;;2.43~2.52:pict_lang
 
-2.53
+
+;;;DERIV
+(define (variable? x) (symbol? x))
+(define (same-variable? v1 v2)
+  (and (variable? v1) (variable? v2) (eq? v1 v2)))
+(define (=number? exp num)
+  (and (number? exp) (= exp num)))
+(define (make-sum a1 a2)
+  (cond ((=number? a1 0) a2)
+        ((=number? a2 0) a1)
+        ((and (number? a1) (number? a2)) (+ a1 a2))
+        (else (list '+ a1 a2))))
+(define (make-product m1 m2)
+  (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+        ((=number? m1 1) m2)
+        ((=number? m2 1) m1)
+        ((and (number? m1) (number? m2)) (* m1 m2))
+        (else (list '* m1 m2))))
+(define (sum? x)
+  (and (pair? x) (eq? (car x) '+)))
+(define (addend s) (cadr s))
+(define (augend s) (caddr s))
+(define (product? x)
+  (and (pair? x) (eq? (car x) '*)))
+(define (multiplier p) (cadr p))
+(define (multiplicand p) (caddr p))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+           (make-product (multiplier exp)
+                         (deriv (multiplicand exp) var))
+           (make-product (deriv (multiplier exp) var)
+                         (multiplicand exp))))
+        (else
+         (error "unknown expression type -- DERIV" exp))))
+
+2.56
+(define (pow? exp) (eq? '** (car exp)))
+(define (base exp) (cadr exp))
+(define (pow exp) (caddr exp))
+(define (make-pow base pwr)
+  (cond ((=number? pwr 0) 1)
+	((and (number? base) (number? pwr)) (expt base pwr))
+      (list '** base pwr)))
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+	((pow? exp)
+	 (cond
+	  ((eq? (pow exp) var)
+	   (if (eq? (base exp) var)
+	       (errorf 'deriv "Could not be derivated : ~s" exp)
+	       (errorf 'derive "n^var form is not yet implemented")))
+	  ((=number? (pow exp) 0) 0)
+	  (else
+	   (make-product (pow exp)
+	    (make-product (deriv (base exp) var)
+			  (make-pow (base exp) (make-sum (pow exp) -1)))))))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+           (make-product (multiplier exp)
+                         (deriv (multiplicand exp) var))
+           (make-product (deriv (multiplier exp) var)
+                         (multiplicand exp))))
+        (else
+         (errorf 'deriv "unknown expression type : ~s" exp))))
+
+2.57 ;NAH CP_4 has way more cool solution about this situation
+(define (augend s) (if (null? (cdddr s)) (caddr s) (cons '+ (cddr s))))
+(define (multiplicand p) (if (null? (cdddr s)) (caddr s) (cons '* (cddr p))))
+
+2.58
+;;;a
+(define (sum? s) (eq? (caddr s) '+))
+(define (product? s) (eq? (caddr s) '*))
+(define addend car)
+(define augend caddr)
+(define multiplier car)
+(define multiplicand caddr)
+;;;;b
+(define (sum? s) (memq '+ s))
+(define (product? s) (and (not (sum? s)) (eq? (cadr s) '*)))
+(define (product-prec? s) (eq? (caddr s) '*))
+(define (no-more? s) (null? (restexp s)))
+(define (restexp s) (cdddr s))
+(define (augend s)
+  (define (find-pure+ aug add)
+    (if (eq? '* (car add))
+	(find-pure+ (append aug (list '* (cadr add))) (cddr add))
+	aug))
+  (cond ((no-more? s) (caddr s))
+	(else (find-pure+ (car s) (cdr s)))))
+(define (addend s) (cdr (memq '+ s)))
+(define multiplier car)
+(define (multiplicand s)
+  (if (no-more? s) (caddr s) (cddr s)))
+;;;Lazy to implement ignore parens :: Could make flat-products
+
+;;;Set as unordered list
+2.59
+(define (union-set s1 s2)
+  (cond ((null? s1) s2)
+	((memq (car s1) s2) (union-set (cdr s1) (cons (car s1) s2)))
+	(else (union-set (cdr s1) s2))))
+
+2.60
+(define element-of-set? memq)
+(define (intersection-set s1 s2)
+  (define (iter s s1 s2)
+    (cond
+     ((null? s1) s)
+     ((memq (car s1) s) (iter s (cdr s1) s2));making it inefficient
+     ((memq (car s1) s2) (iter (cons (car s1) s) (cdr s1) s2))
+     (else (iter s (cdr s1) s2))))
+  (iter '() s1 s2))
+(define (union-set s1 s2)
+  (define (iter s s1 s2)
+    (cond
+     ((null? s1) (if (null? s2) s (iter s s2 s1)))
+     ((memq (car s1) s) (iter s (cdr s1) s2))
+     (else (iter (cons (car s1) s) (cdr s1) s2))))
+  (iter '() s1 s2))
+;;;or just
+(define (union-set s1 s2)
+  (append s1 s2))
+;;;could use this for something that uses union-set & memq a lot
+
+2.61
+(define (adjoin-set x set)
+  (cond ((null? set) (cons x set))
+	((> x (car set)) (cons (car set) (adjoin-set x (cdr set))))
+	((= x (car set)) set)
+	((< x (car set)) (cons x set))));could use else instead
+(define (element-of-set? x set)
+  (cond ((> x (car set)) #f)
+	((= x (car set)) set);like memq
+	(else (element-of-set? (element-of-set? x (cdr set)))))) ;else will work
+
+2.62
+(define (union-set s1 s2)
+  (cond ((null? s1) s2)
+	((null? s2) s1)
+	(else
+	 (let ((v1 (car s1))
+	       (v2 (car s2)))
+	   (cond ((< v1 v2) (cons v1 (union-set (cdr s1) s2)))
+		 ((= v1 v2) (cons v1 (union-set (cdr s1) (cdr s2))))
+		 ((> v1 v2) (cons v2 (union-set s1 (cdr s2)))))))))
+
+2.63
+;;;a - same ;;;b grows slowly - a has unnecessary linear op time on append.
+
+2.64;;;O(n)
+
+2.65;; Strong Urge to use lazy lists.
+
+2.66
+(define (tree-union-set t1 t2) ;;Still O(n), but yet inefficient
+  (list->tree (union-set (tree->list t1) (tree->list t2))))
+(define (tree-intersection-set t1 t2)
+  (list->tree (intersetction-set (tree-list t1) (tree->liset t2))))
+
+;;;Huffman
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+(define (leaf? object)
+  (eq? (car object) 'leaf))
+(define (symbol-leaf x) (cadr x))
+(define (weight-leaf x) (caddr x))
+(define (make-code-tree left right)
+  (list left
+        right
+        (append (symbols left) (symbols right))
+        (+ (weight left) (weight right))))
+(define (left-branch tree) (car tree))
+(define (right-branch tree) (cadr tree))
+(define (symbols tree)
+  (if (leaf? tree)
+      (list (symbol-leaf tree))
+      (caddr tree)))
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (cadddr tree)))
+(define (decode bits tree)
+  (define (decode-1 bits current-branch)
+    (if (null? bits)
+        '()
+        (let ((next-branch
+               (choose-branch (car bits) current-branch)))
+          (if (leaf? next-branch)
+              (cons (symbol-leaf next-branch)
+                    (decode-1 (cdr bits) tree))
+              (decode-1 (cdr bits) next-branch)))))
+  (decode-1 bits tree))
+(define (choose-branch bit branch)
+  (cond ((= bit 0) (left-branch branch))
+        ((= bit 1) (right-branch branch))
+        (else (error "bad bit -- CHOOSE-BRANCH" bit))))
+(define (adjoin-set x set)
+  (cond ((null? set) (list x))
+        ((< (weight x) (weight (car set))) (cons x set))
+        (else (cons (car set)
+                    (adjoin-set x (cdr set))))))
+2.67;ADABBCA
+
+2.68
+(define (encode message tree)
+  (if (null? message)
+      '()
+      (append (encode-symbol (car message) tree)
+              (encode (cdr message) tree))))
+(define (encode-symbol sym tree)
+  (cond
+   ((leaf? tree) '())
+   ((memq sym (symbols (left-branch tree)))
+    (cons 0 (encode-symbol sym (left-branch tree))))
+   ((memq sym (symbols (right-branch tree)))
+    (cons 1 (encode-symbol sym (right-branch tree))))
+   (else (errorf 'encode-symbol "Symbol not in tree : ~s" sym))))
+
+2.69
+(define (generate-huffman-tree pairs)
+  (successive-merge (make-leaf-set pairs)))
+(define (make-leaf-set pairs)
+  (fold-right adjoin-set
+	      '()
+	      (map (lambda (p) (make-leaf (car p) (cdr p))) pairs)))
+(define (successive-merge leaf-set) ;if leaf-set is list
+  (if (null? (cdr leaf-set))
+      (car leaf-set)
+      (successive-merge
+       (adjoin-set
+	(make-code-tree
+	 (car leaf-set)
+	 (cadr leaf-set))
+	(cddr leaf-set)))))
+
+2.70
+(define rock-tree (generate-huffman-tree '((BOOM . 1) (WAH . 1) (A . 2) (GET . 2) (JOB . 2) (SHA . 3) (YIP . 9) (NA . 16))))
+(define phrases '((GET A JOB)
+		  (SHA NA NA NA NA NA NA NA NA)
+		  (GET A JOB)
+		  (SHA NA NA NA NA NA NA NA NA)
+		  (WAH YIP YIP YIP YIP YIP YIP YIP YIP YIP)
+		  (SHA BOOM)))
+(define enc-phrases (map (lambda (p) (encode p rock-tree)) phrases))
+;;;84 bits
+;(define dec-phrases (map (lambda (e) (decode e rock-tree)) enc-phrases))
+;;;guess it will be quite longer than before when encoded in ABC
+2.71;;;1~(n-1)
+
+2.72;;;encode-symbol: 2 or 3*26
+
+2.73
+;;a - doesnt have operator/ands
+;;b
+(define (variable? x) (symbol? x))
+(define (same-variable? v1 v2)
+  (and (variable? v1) (variable? v2) (eq? v1 v2)))
+(define (=number? exp num)
+  (and (number? exp) (= exp num)))
+(define (install-sum)
+  (define (make-sum a1 a2)
+    (cond ((=number? a1 0) a2)
+          ((=number? a2 0) a1)
+          ((and (number? a1) (number? a2)) (+ a1 a2))
+          (else (list '+ a1 a2))))
+  (define (addend s) (cadr s))
+  (define (augend s) (caddr s))
+  (define (derivate exp var)
+    (make-sum
+     (deriv (addend exp) var)
+     (deriv (augend exp) var)))
+  (put 'gen '+ make-sum)
+  (put 'er '+ addend)
+  (put 'and '+ augend)
+  (put 'derivate '+ derivate)
+'done)
+(define (install-product)
+  (define (make-product m1 m2)
+    (cond ((or (=number? m1 0) (=number? m2 0)) 0)
+          ((=number? m1 1) m2)
+          ((=number? m2 1) m1)
+          ((and (number? m1) (number? m2)) (* m1 m2))
+          (else (list '* m1 m2))))
+  (define (product? x)
+    (and (pair? x) (eq? (car x) '*)))
+  (define (multiplier p) (cadr p))
+  (define (multiplicand p) (caddr p))
+  (define (derivate exp var)
+    ((get 'gen '+)
+     (make-product (multiplier exp)
+                   (deriv (multiplicand exp) var))
+     (make-product (deriv (multiplier exp) var)
+                   (multiplicand exp))))
+  (put 'gen '* make-product)
+  (put 'er '* multiplier)
+  (put 'and '* multiplicand)
+  (put 'derivate '* derivate)
+  'done)
+
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp)
+         (if (same-variable? exp var) 1 0))
+	(else ((get 'deriv (operator exp)) (operands exp) var))))
+
+;;c
+(define (install-power)
+  (define (base exp) (cadr exp))
+  (define (pow exp) (caddr exp))
+  (define (make-pow base pwr)
+    (cond ((=number? pwr 0) 1)
+	  ((and (number? base) (number? pwr)) (expt base pwr))
+	  (list '** base pwr)))
+  (define (deriv exp var)
+    (cond
+     ((eq? (pow exp) var)
+      (if (eq? (base exp) var)
+	  (errorf 'deriv "Could not be derivated : ~s" exp)
+	  (errorf 'derive "n^var form is not yet implemented")))
+     ((=number? (pow exp) 0) 0)
+     (else
+      ((get 'gen '*)
+       (pow exp)
+       ((get 'gen '*)
+	(deriv (base exp) var)
+	(make-pow (base exp) (make-sum (pow exp) -1)))))))
+  (put 'gen '** make-sum)
+  (put 'er '** addend)
+  (put 'and '** augend)
+  (put 'derivate '** derivate)
+  'done)
+
+;;d - just flipping the row-col. just fix get-sets.
+2.74
+;;;a - hold division name as type, and dispatch the local get-record
+;;;b - hold div name, and add individual marker to distinguish a
+;;;c - need meta-database tracking all the division and c->a->b
+;;;d - new table on c, ops within division name needed
+2.75
+(define (make-from-mag-ang r a)
+  (define (dispatch op)
+    (cond
+     ((eq? op 'real-part) (* r (cos a)))
+     ((eq? op 'imag-part) (* r (sin a)))
+     ((eq? op 'magnitude) r)
+     ((eq? op 'angle) a)
+     (else (errorf 'mag-ang "Unknown operation")))))
+
+2.76
+;;;Generic - adding ops is easy, compact
+;;;Message-passing - adding new types is easy
+;;;Data-directed - adding new types/ops is easy enough
