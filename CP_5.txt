@@ -444,4 +444,82 @@ afterfib-n-2
 5.22
 ;;;append!
 (controller
- )
+ (save la)
+ append-loop
+ (assign aft (op cdr) (reg la))
+ (test (op null?) (reg aft))
+ (branch (label append-loop))
+ (assign la (reg aft))
+ (goto (label append-it))
+ append-it
+ (perform (op set-cdr!) (reg la) (reg lb))
+ (load aft))
+;;;append - result on lb, la + lb
+(controller
+ (assign continue (label end-append))
+ append-loop-down
+ (test (op null?) (reg la))
+ (branch (reg continue))
+ (assign atom (op car) (reg la))
+ (assign la (op cdr) (reg la))
+ (save atom)
+ (save (reg continue))
+ (assign continue (label append-loop-up))
+ (goto (label append-loop-down))
+ append-loop-up
+ (load atom)
+ (load continue)
+ (assign (reg lb) (op cons) (reg atom) (reg lb))
+ (goto (reg continue))
+ end-append)
+
+5.23
+;;;eval-dispatch
+(test (op cond?) (reg exp))
+(branch (label ev-cond))
+;;;ev-cond
+ev-cond
+(assign exp (op cond->if) (reg exp))
+(goto (label eval-dispatch))
+
+5.24
+;;;eval-dispatch
+(test (op cond?) (reg exp))
+(branch (label ev-cond))
+;;;ev-cond
+ev-cond
+(assign unev (op cond-exps) (reg exp))
+(save continue)
+(goto (label ev-cond-exps))
+ev-cond-exps
+(assign exp (op first-exp) (reg unev))
+(assign val (op cond-pred) (reg exp));temp for else?
+(test (op else?) (reg val));dont care even if 'else is not last
+(branch (label cond-if-consequent))
+(save unev)
+(save env)
+(save exp)
+(assign exp (op cond-pred) (reg exp))
+(assign continue (label ev-cond-decide))
+ev-cond-decide
+(load exp)
+(load env)
+(load unev)
+(test (op true?) (reg val))
+(branch (label cond-if-consequent))
+(test (op last-exp?) (reg unev))
+(branch (label ev-cond-last-exp))
+(goto (label cond-if-not))
+cond-if-consequent
+(assign exp (op cond-conseq) (reg exp))
+(load continue)
+(goto (label eval-dispatch))
+cond-if-not
+(assign unev (op rest-exps) (reg unev))
+(goto (label ev-cond-exps))
+ev-cond-last-exp
+(assign val (const #f));no match
+(load continue)
+(goto (reg continue))
+
+5.25
