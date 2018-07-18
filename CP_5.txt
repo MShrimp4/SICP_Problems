@@ -53,6 +53,7 @@
     (assign prod (op *) (reg prod) (reg b))
     (goto (label exp-loop))
  end-expt)
+5.5;That was a labor
 5.6
 ;after-fib restore/save continue
 5.7
@@ -375,7 +376,7 @@ afterfib-n-2
   (start recfact)
   (get-register-contents recfact 'val)) ; total/max = 2n-2
 
-~5.20: Register_Machine*.scm
+~5.19: Register_Machine*.scm
 
 5.21
 ;;;a ## tree on (reg search)

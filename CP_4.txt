@@ -396,9 +396,33 @@
    (lambda (ev? od? n)
      (if (= n 0) #f (ev? ev? od? (- n 1))))))
 
+4.22 ;;Analyze_Execute.scm
+;;;analyze
+((let? exp) (analyze (let->combination exp)))
 
+;;;Funcs
+(define (let? exp) (tagged-list? exp 'let))
+(define (let-binds exp) (cadr exp))
+(define (let-body-lst exp) (cddr exp))
+(define (extract-vars exp) (map car exp))
+(define (extract-vals exp) (map cadr exp))
+(define (make-let binds . body-lst)
+    (cons 
+     (make-lambda (extract-vars binds) body-lst)
+     (extract-vals binds)))
+(define (let->combination exp)
+    (apply-in-underlying-scheme
+     make-let (let-binds exp) (let-body-lst exp)))
 
-;;;
+4.23
+;;Alyssa`s code will loop on execution, Textbook code will loop when analyzing
+
+4.24
+;;NAAH Chez is too fast for benchmarking
+
+4.25 ;;Inf.loop on applicative
+
+4.26 ;;Higher order proc
 
 4.27
 ; 1 10 2
@@ -493,7 +517,11 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
     (require (= (+ (* i i) (* j j)) (* k k)))
     (list i j k)))
 
-4.37
+4.37 ;;Varies : It sure is fast when arithmetic is cheap
+
+;;4.38~42 : Wrote on a paper and checked answer online
+
+4.43
 (define (map func lst)
   (if (null? lst)
       '()
@@ -548,7 +576,7 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 (define (8queen) (construct-queen (an-integer-between 1 8) 8))
 
 
-;;;;;
+;;;;;Parsing Natural Language
 (define nouns '(noun student professor cat class))
 (define verbs '(verb studies lectures eats sleeps))
 (define articles '(article the a))
@@ -566,7 +594,9 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
   (let ((found-word (car *unparsed*)))
     (set! *unparsed* (cdr *unparsed*))
     (list (car word-list) found-word)))
+;;4.45~47 : Checked with internet
 
+4.50
 
 4.55
 (supervisor ?x (Bitdiddle Ben)) ;a
@@ -678,3 +708,26 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
       (and
        (son-of ?x ?sx)
        (?rel ?sx ?y)))
+
+4.70 ;;preventing assertion-monotonic inf.stream
+
+4.71 ;;Both for postponing possible inf.loop generator
+
+4.72 ;;Stream Could Be Infinite
+
+4.73 ;;Inf. Loop with Inf. Streams
+
+4.74
+;;;a
+(define (simple-flatten stream)
+  (stream-map stream-car
+	      (stream-filter (lambda (x) (not (null? x))) stream)))
+;;;b - Will be the same
+
+4.75
+(define (uniquely-asserted uniq-assert frame-stream)
+  (let ((unique (qeval uniq-assert frame-stream)))
+    (if (not (stream-null? (stream-cdr unique)))
+	the-empty-stream
+	unique)))
+(put 'unique 'qeval uniquely-asserted)
