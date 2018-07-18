@@ -6,103 +6,60 @@
 
 
 ;;; Stream implementation from CP_3
-(define the-empty-stream '())
-(define (memoize proc)
-  (let ((run? #f) (result #f))
-    (lambda ()
-      (if (not run?)
-	  (begin
-	    (set! result (proc))
-	    (set! run? #t)
-	    result)
-	  result))))
-(define-syntax cons-stream
-  (syntax-rules ()
-    [(_ a d) (cons a (memoize (delay d)))]))
-(define (stream-car st) (car st))
-(define (stream-cdr st) (force (cdr st)))
-(define (stream-ref st n)
+(define (ref st n)
   (if (= n 0)
-      (stream-car st)
-      (stream-ref (stream-cdr st) (- n 1))))
-(define (stream-append-delayed s1 delayed-s2)
-  (if (stream-null? s1)
-      (force delayed-s2)
-      (cons-stream
-       (stream-car s1)
-       (stream-append-delayed (stream-cdr s1) delayed-s2))))
-(define (stream-append s1 s2)
-  (if (stream-null? s1)
+      (car st)
+      (ref (cdr st) (- n 1))))
+(define (append s1 s2)
+  (if (null? s1)
       s2
-      (cons-stream
-       (stream-car s1)
-       (stream-append (stream-cdr s1) s2))))
-(define stream-null? null?)
-(define (stream-filter f st)
-  (if (stream-null? st)
+      (cons
+       (car s1)
+       (append (cdr s1) s2))))
+(define (append s1 s2)
+  (if (null? s1)
+      s2
+      (cons
+       (car s1)
+       (append (cdr s1) s2))))
+(define null? null?)
+(define (filter f st)
+  (if (null? st)
       st
-      (if (f (stream-car st))
-	  (cons-stream
-	   (stream-car st)
-	   (stream-filter f (stream-cdr st)))
-	  (stream-filter f (stream-cdr st)))))
-(define (stream-map proc . argstreams)
-  (if (null? (car argstreams))
-      the-empty-stream
-      (cons-stream
-       (apply proc (map stream-car argstreams))
-       (apply stream-map
-	      (cons proc (map stream-cdr argstreams))))))
-(define (stream-flatmap proc s)
-  (flatten-stream (stream-map proc s)))
+      (if (f (car st))
+	  (cons
+	   (car st)
+	   (filter f (cdr st)))
+	  (filter f (cdr st)))))
+(define (map proc lst)
+  (if (null? (car lst))
+      '()
+      (cons
+       (proc (car lst))
+       (map proc (cdr lst)))))
+(define (flatmap proc s)
+  (flatten-stream (map proc s)))
 (define (flatten-stream stream)
-  (if (stream-null? stream)
-      the-empty-stream
-      (interleave-delayed
-       (stream-car stream)
-       (delay (flatten-stream (stream-cdr stream))))))
-(define (add-streams . s)
-  (apply stream-map (cons + s)))
-(define (mul-streams s1 s2)
-  (stream-map * s1 s2))
-(define (div-streams s1 s2)
-  (stream-map / s1 s2))
-(define (scale-stream st factor)
-  (cons-stream
-   (* factor (stream-car st))
-   (scale-stream (stream-cdr st) factor)))
-(define (partial-sums stream)
-    (define psstream
-      (cons-stream
-        (stream-car stream)
-        (add-streams psstream (stream-cdr stream))))
-    psstream)
-(define (repeat n) (define self (cons-stream n self)) self)
-(define (singleton-stream x) (cons-stream x the-empty-stream))
+  (if (null? stream)
+      '()
+      (interleave
+       (car stream)
+       (flatten-stream (cdr stream)))))
 (define (interleave s1 s2)
-  (if (stream-null? s1)
+  (if (null? s1)
       s2
-      (cons-stream
-       (stream-car s1)
-       (interleave s2 (stream-cdr s1)))))
-(define (interleave-delayed s1 delayed-s2)
-  (if (stream-null? s1)
-      (force delayed-s2)
-      (cons-stream
-       (stream-car s1)
-       (interleave-delayed (force delayed-s2)
-			   (delay (stream-cdr s1))))))
-(define ones (repeat 1))
-(define integers (cons-stream 1 (add-streams integers ones)))
+      (cons
+       (car s1)
+       (interleave s2 (cdr s1)))))
 (define (display-stream st until)
   (define (iter st until)
     (cond
-     ((stream-null? st))
+     ((null? st))
      ((= until 0) (display "..."))
      (else
-      (display (stream-car st))
+      (display (car st))
       (newline)
-      (iter (stream-cdr st) (- until 1)))))
+      (iter (cdr st) (- until 1)))))
   (newline)
   (iter st until)
   (newline))
@@ -117,21 +74,21 @@
 	  table
 	  (let ((obj (get-hash-table table (car smth) #f)))
 	    (if obj
-		(apply get-child obj (cdr smth))
+		(get-child obj . (cdr smth))
 		#f))))
-    (apply get-child THE-TABLE smth))
+    (get-child THE-TABLE . smth))
   (define (put . smth)
     (define (put-child table . smth)
       (if (null? (cddr smth))
 	  (put-hash-table! table (car smth) (cadr smth))
 	  (let ((obj (get-hash-table table (car smth) #f)))
 	    (if obj
-		(apply put-child obj (cdr smth))
+		(put-child obj . (cdr smth))
 		(begin
 		  (let ((new-table (make-hash-table)))
 		    (put-hash-table! table (car smth) new-table)
-		    (apply put-child new-table (cdr  smth))))))))
-    (apply put-child THE-TABLE smth)
+		    (put-child new-table . (cdr smth))))))))
+    (put-child THE-TABLE . smth)
     'ok)
 
 ;;;Query
@@ -154,14 +111,14 @@
 	(newline)
 	(display output-prompt)
 	(display-stream
-	 (stream-map
+	 (map
 	  (lambda (frame)
 	    (instantiate
 	     q
 	     frame
 	     (lambda (v f)
 	       (contract-question-mark v))))
-	  (qeval q (singleton-stream '())))
+	  (qeval q (list '())))
 	 -1)
 	(query-driver-loop)))))
 
@@ -182,11 +139,11 @@
         (qproc (contents query) frame-stream)
         (simple-query query frame-stream))))
 (define (simple-query query-pattern frame-stream)
-  (stream-flatmap
+  (flatmap
    (lambda (frame)
-     (stream-append-delayed
+     (append
       (find-assertions query-pattern frame)
-      (delay (apply-rules query-pattern frame))))
+      (apply-rules query-pattern frame)))
    frame-stream))
 (define (conjoin conjuncts frame-stream)
   (if (empty-conjunction? conjuncts)
@@ -196,21 +153,21 @@
                       frame-stream))))
 (define (disjoin disjuncts frame-stream)
   (if (empty-disjunction? disjuncts)
-      the-empty-stream
-      (interleave-delayed
+      '()
+      (interleave
        (qeval (first-disjunct disjuncts) frame-stream)
-       (delay (disjoin (rest-disjuncts disjuncts)
-                       frame-stream)))))
+       (disjoin (rest-disjuncts disjuncts)
+			frame-stream))))
 (define (negate operands frame-stream)
-  (stream-flatmap
+  (flatmap
    (lambda (frame)
-     (if (stream-null? (qeval (negated-query operands)
-                              (singleton-stream frame)))
-         (singleton-stream frame)
-         the-empty-stream))
+     (if (null? (qeval (negated-query operands)
+                              (list frame)))
+         (list frame)
+         '()))
    frame-stream))
 (define (lisp-value call frame-stream)
-  (stream-flatmap
+  (flatmap
    (lambda (frame)
      (if (execute
           (instantiate
@@ -218,23 +175,23 @@
            frame
            (lambda (v f)
              (errorf 'lisp-value "Unknown pat var ~s" v))))
-         (singleton-stream frame)
-         the-empty-stream))
+         (list frame)
+         '()))
    frame-stream))
 (define (execute exp)
   (apply (eval (predicate exp))
          (args exp)))
 (define (always-true ignore frame-stream) frame-stream)
 (define (find-assertions pattern frame)
-  (stream-flatmap (lambda (datum)
+  (flatmap (lambda (datum)
                     (check-an-assertion datum pattern frame))
                   (fetch-assertions pattern frame)))
 (define (check-an-assertion assertion query-pat query-frame)
   (let ((match-result
          (pattern-match query-pat assertion query-frame)))
     (if (eq? match-result 'failed)
-        the-empty-stream
-        (singleton-stream match-result))))
+        '()
+        (list match-result))))
 (define (pattern-match pat dat frame)
   (cond ((eq? frame 'failed) 'failed)
         ((equal? pat dat) frame)
@@ -252,7 +209,7 @@
         (pattern-match (binding-value binding) dat frame)
         (extend var dat frame))))
 (define (apply-rules pattern frame)
-  (stream-flatmap (lambda (rule)
+  (flatmap (lambda (rule)
                     (apply-a-rule rule pattern frame))
                   (fetch-rules pattern frame)))
 (define (apply-a-rule rule query-pattern query-frame)
@@ -262,9 +219,9 @@
                         (conclusion clean-rule)
                         query-frame)))
       (if (eq? unify-result 'failed)
-          the-empty-stream
+          '()
           (qeval (rule-body clean-rule)
-                 (singleton-stream unify-result))))))
+                 (list unify-result))))))
 (define (rename-variables-in rule)
   (let ((rule-application-id (new-rule-application-id)))
     (define (tree-walk exp)
@@ -315,7 +272,7 @@
                (tree-walk (cdr e))))
           (else #f)))
   (tree-walk exp))
-(define THE-ASSERTIONS the-empty-stream)
+(define THE-ASSERTIONS '())
 (define (fetch-assertions pattern frame)
   (if (use-index? pattern)
       (get-indexed-assertions pattern)
@@ -325,15 +282,15 @@
   (get-stream (index-key-of pattern) 'assertion-stream))
 (define (get-stream key1 key2)
   (let ((s (get key1 key2)))
-    (if s s the-empty-stream)))
-(define THE-RULES the-empty-stream)
+    (if s s '())))
+(define THE-RULES '())
 (define (fetch-rules pattern frame)
   (if (use-index? pattern)
       (get-indexed-rules pattern)
       (get-all-rules)))
 (define (get-all-rules) THE-RULES)
 (define (get-indexed-rules pattern)
-  (stream-append
+  (append
    (get-stream (index-key-of pattern) 'rule-stream)
    (get-stream '? 'rule-stream)))
 (define (add-rule-or-assertion! assertion)
@@ -344,12 +301,12 @@
   (store-assertion-in-index assertion)
   (let ((old-assertions THE-ASSERTIONS))
     (set! THE-ASSERTIONS
-          (cons-stream assertion old-assertions))
+          (cons assertion old-assertions))
     'ok))
 (define (add-rule! rule)
   (store-rule-in-index rule)
   (let ((old-rules THE-RULES))
-    (set! THE-RULES (cons-stream rule old-rules))
+    (set! THE-RULES (cons rule old-rules))
     'ok))
 (define (store-assertion-in-index assertion)
   (if (indexable? assertion)
@@ -358,7 +315,7 @@
                (get-stream key 'assertion-stream)))
           (put key
                'assertion-stream
-               (cons-stream assertion
+               (cons assertion
                             current-assertion-stream))))))
 (define (store-rule-in-index rule)
   (let ((pattern (conclusion rule)))
@@ -368,7 +325,7 @@
                  (get-stream key 'rule-stream)))
             (put key
                  'rule-stream
-                 (cons-stream rule
+                 (cons rule
                               current-rule-stream)))))))
 (define (indexable? pat)
   (or (constant-symbol? (car pat))
@@ -449,15 +406,15 @@
 (define (extend variable value frame)
   (cons (make-binding variable value) frame))
 ;;;;
-  (define (singleton-stream? s) (null? (stream-cdr s)))
+  (define (list? s) (null? (cdr s)))
   (define (unique-query s) (car s))
   (define (uniquely-asserted uniq-assert frame-stream)
-    (stream-flatmap
+    (flatmap
      (lambda (frame)
-       (if (singleton-stream? (qeval (unique-query uniq-assert)
-				     (singleton-stream frame)))
-	   (singleton-stream frame)
-	   the-empty-stream))
+       (if (list? (qeval (unique-query uniq-assert)
+				     (list frame)))
+	   (list frame)
+	   '()))
      frame-stream))
   (put 'unique 'qeval uniquely-asserted)
 ;;;;

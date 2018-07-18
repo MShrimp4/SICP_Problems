@@ -688,6 +688,8 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 (son-of Lamech ?sons)
 (grandson-of Methushael ?grandsons)
 
+;;;
+
 4.68
 (rule (rev () ?rev ?rev))
 (rule (rev (?h . ?t) ?r rev)
@@ -745,6 +747,66 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 
 ;;;=>Scrooge Eben & Alyssa P Hacker
 
-;;;; Think I broke something : rules dont work properly
+;;;; I think I broke something : rules dont work properly
+;;;; QuerySystem.scm --> Query_System.scm (fixed!)
+
 
 4.76
+(define (conjoin conjuncts frame-stream)
+  (if (empty-conjunction? conjuncts)
+      frame-stream
+      (merge (qeval (first-conjunct conjuncts) frame-stream)
+	     (conjoin (rest-conjuncts conjuncts) frame-stream))))
+(define (merge fs1 fs2)
+  (cond ((stream-null? fs1) fs2)
+	((stream-null? fs2) fs1)
+	(else
+	 (stream-flatmap
+	  (lambda (f2)
+	    (stream-flatmap
+	     (lambda (f1) (merge-frame f1 f2))
+	     fs1))
+	  fs2))))
+(define (merge-frame f1 f2)
+  (if (stream-null? f1)
+      (singleton-stream f2)
+      (let ((bind1 (car f1)))
+	(let ((p1 (car bind1)) (p2 (cdr bind1)))
+	  (let ((newframe (unify-match p1 p2 f2)))
+	    (if (eq? newframe 'failed)
+		the-empty-stream
+		(merge-frame (cdr f1) newframe)))))))
+;;Crashes with lisp-value
+;;Because lisp-value gets eval`d simultaneously
+;;Could use 4.77 to fix this behavior
+;;but 4.77 is also a modded ver. of conjoin
+
+4.77 ;;Cheaper way : just switch eval order
+(define (conjoin conjuncts frame-stream)
+  (define (conjoin-reworked conjuncts frame-stream)
+    (if (empty-conjunction? conjuncts)
+	frame-stream
+	(conjoin (rest-conjuncts conjuncts)
+		 (qeval (first-conjunct conjuncts)
+			frame-stream))))
+  (define (reframe-conjoin conjuncts frame-stream)
+    (conjoin-reworked
+     (append
+      (filter (lambda (s) (not (or (tagged-list? s 'lisp-value)
+				   (tagged-list? s 'not))))
+	      conjuncts)
+      (filter (lambda (s) (or (tagged-list? s 'lisp-value)
+			      (tagged-list? s 'not)))
+	      conjuncts))
+     frame-stream))
+  (reframe-conjoin conjuncts frame-stream))
+
+
+4.78
+;; Found it exetremely difficult to implement dotted trail functions. Ow.
+;; (Misread and tried to run on normal order evaluator)
+;; Amb version would be a good way to represent the code
+;; Could generate answer in a more sorted way
+;; No duplicates? Maybe.
+
+4.79
