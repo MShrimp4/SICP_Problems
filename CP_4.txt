@@ -725,9 +725,26 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 ;;;b - Will be the same
 
 4.75
+
+(define (singleton-stream? s) (null? (stream-cdr s)))
+(define (unique-query s) (car s))
 (define (uniquely-asserted uniq-assert frame-stream)
-  (let ((unique (qeval uniq-assert frame-stream)))
-    (if (not (stream-null? (stream-cdr unique)))
-	the-empty-stream
-	unique)))
+  (stream-flatmap
+   (lambda (frame)
+     (if (singleton-stream? (qeval (unique-query uniq-assert)
+				   (singleton-stream frame)))
+	 (singleton-stream frame)
+	 the-empty-stream))
+   frame-stream))
 (put 'unique 'qeval uniquely-asserted)
+(assert!
+ (rule (supervise-one ?x ?y)
+       (and
+	(supervisor ?k ?y)
+	(unique (supervisor ?x ?y)))))
+
+;;;=>Scrooge Eben & Alyssa P Hacker
+
+;;;; Think I broke something : rules dont work properly
+
+4.76
