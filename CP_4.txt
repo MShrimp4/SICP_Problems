@@ -386,7 +386,8 @@
   (let ((removed-var (cadr exp)))
     (make-unbound! var env)))
 
-;4.16~20 : Meta_Eval.scm
+;;;4.16~20 : Meta_Eval.scm
+4.21
 (define (f x)
   ((lambda (even? odd?)
      (even? even? odd? x))
@@ -412,8 +413,15 @@
 ;memoized
 
 4.30
-
+;;;a - end-of-seq so gets eval`d afterwards
+;;;b - p1 - (1 2) (1 2) / p2 - 1 (1 2)
+;;;c - end-of-seq
+;;;d - Cy`s approach is better with side effects,
+;;;;;;;but inf.loops shouldnt get eval`d so just check for assigns
 4.31
+;;;Could force ones without lazy, memoize with lazy-memo.
+;;;Or make it like delay-force combo.
+;;;I`ll just skip.
 
 ;;4.32-34
 (define (cons m n)
@@ -454,11 +462,13 @@
 n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 
 4.32
-;map nested lists
+;;;map nested lists
 
+4.33
+;;;Lazy_Eval.scm
 
-;
-
+4.34
+;;;I already made display-stream. Wont do it again
 
 ;4.35~
 (define (require p)
@@ -539,6 +549,23 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 
 
 ;;;;;
+(define nouns '(noun student professor cat class))
+(define verbs '(verb studies lectures eats sleeps))
+(define articles '(article the a))
+(define (parse-sentence)
+  (list 'sentence
+         (parse-noun-phrase)
+         (parse-word verbs)))
+(define (parse-noun-phrase)
+  (list 'noun-phrase
+        (parse-word articles)
+        (parse-word nouns)))
+(define (parse-word word-list)
+  (require (not (null? *unparsed*)))
+  (require (memq (car *unparsed*) (cdr word-list)))
+  (let ((found-word (car *unparsed*)))
+    (set! *unparsed* (cdr *unparsed*))
+    (list (car word-list) found-word)))
 
 
 4.55
@@ -583,6 +610,8 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
      (lisp-value > ?s1 ?s2)
      ;(not (same? ?p1 ?p2)) ;;unused : Lisp-value guarantees
      )
+
+4.58
 (rule (big-shot ?person)
       (and
        (job ?person (?division . ?any))

@@ -140,7 +140,8 @@
             (make-if (cond-predicate first)
                      (sequence->exp (cond-actions first))
                      (expand-clauses rest))))))
-
+(define true #t)
+(define false #f)
 (define (true? x)
   (not (eq? x false)))
 (define (false? x)
@@ -217,7 +218,6 @@
     (define-variable! 'true true initial-env)
     (define-variable! 'false false initial-env)
     initial-env))
-(define the-global-environment (setup-environment))
 (define (primitive-procedure? proc)
   (tagged-list? proc 'primitive))
 (define (primitive-implementation proc) (cadr proc))
