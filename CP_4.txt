@@ -688,7 +688,13 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 (son-of Lamech ?sons)
 (grandson-of Methushael ?grandsons)
 
-;;;
+4.66
+;;Make make-unique filter to eliminate duplicates
+;;Similar to unique
+
+4.67
+;;Detect applying same query on same stream repeatedly
+;;History state up to two or three on qeval will be sufficient
 
 4.68
 (rule (rev () ?rev ?rev))
@@ -809,4 +815,34 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 ;; Could generate answer in a more sorted way
 ;; No duplicates? Maybe.
 
+
+
+
 4.79
+;; -- Environment Context --
+;; For example, if Julie lives in Town A, and Max also lives Town A
+;; Then we can say Julie lives near Max (Or Max lives near Julie)
+;; => Doesn`t mean Julie who I know lives Town A,
+;;    neither Max, and even doesn`t mean the town "Town A" exists.
+(define (apply-a-rule rule query-pattern query-frame)
+  (let ((result (qeval
+		 (rule-body rule)
+		 (create-context (conclusion rule)
+				 query-pattern
+				 query-frame))))
+    (stream-flatmap
+     (lambda (result-frame)
+       (apply-context (conclusion rule)
+		      query-pattern
+		      result-frame
+		      query-frame))
+     result)))
+
+;; create-context : remove assert from frame, create new one
+;;                  with only matching conclusion vars with
+;;                  values
+
+;; apply-context : apply resulting context frame values to
+;;                 previous frame according to pattern
+;;                 empty stream if fails
+

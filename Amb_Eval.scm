@@ -14,7 +14,7 @@
 	((let? exp) (analyze (let->combination exp)))
         ((application? exp) (analyze-application exp))
         (else
-         (error "Unknown expression type -- ANALYZE" exp))))
+         (errorf 'analyze "Unknown expression type ~s" exp))))
 (define (analyze-self-evaluating exp)
   (lambda (env) exp))
 (define (analyze-quoted exp)
@@ -58,7 +58,7 @@
               (cdr rest-procs))))
   (let ((procs (map analyze exps)))
     (if (null? procs)
-        (error "Empty sequence -- ANALYZE"))
+        (errorf 'analyze-sequence "Empty sequence"))
     (loop (car procs) (cdr procs))))
 
 (define (analyze-application exp)
@@ -77,8 +77,9 @@
                               args
                               (procedure-environment proc))))
         (else
-         (error
-          "Unknown procedure type -- EXECUTE-APPLICATION"
+         (errorf
+	  'execute-application
+          "Unknown procedure type ~s"
           proc))))
 
 (define apply-in-underlying-scheme apply)
@@ -181,7 +182,7 @@
         (if (cond-else-clause? first)
             (if (null? rest)
                 (sequence->exp (cond-actions first))
-                (error "ELSE clause isn't last -- COND->IF"
+                (errorf 'cond->if "ELSE clause isn't last ~s"
                        clauses))
             (make-if (cond-predicate first)
                      (sequence->exp (cond-actions first))
@@ -215,8 +216,10 @@
   (if (= (length vars) (length vals))
       (cons (make-frame vars vals) base-env)
       (if (< (length vars) (length vals))
-          (error "Too many arguments supplied" vars vals)
-          (error "Too few arguments supplied" vars vals))))
+          (errorf 'extend-environment
+		  "Too many arguments supplied ~s ~s" vars vals)
+          (errorf 'extend-environment
+		  "Too few arguments supplied ~s ~s" vars vals))))
 (define (lookup-variable-value var env)
   (define (env-loop env)
     (define (scan vars vals)
@@ -226,7 +229,7 @@
              (car vals))
             (else (scan (cdr vars) (cdr vals)))))
     (if (eq? env the-empty-environment)
-        (error "Unbound variable" var)
+        (errorf 'env-loop "Unbound variable ~s" var)
         (let ((frame (first-frame env)))
           (scan (frame-variables frame)
                 (frame-values frame)))))
@@ -240,7 +243,7 @@
              (set-car! vals val))
             (else (scan (cdr vars) (cdr vals)))))
     (if (eq? env the-empty-environment)
-        (error "Unbound variable -- SET!" var)
+        (errorf 'set! "Unbound variable ~s" var)
         (let ((frame (first-frame env)))
           (scan (frame-variables frame)
                 (frame-values frame)))))
