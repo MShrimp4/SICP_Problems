@@ -288,6 +288,49 @@ afterfib-n-2
               (else (errorf 'Machine "Unknown request: ~s" message))))
       dispatch)))
 
+5.12
+
+(define (assemble controller-text machine)
+  (define (ops)
+    (extract-labels controller-text
+		    (lambda (insts labels)
+		      (update-insts! insts labels machine)
+		      insts)))
+  (define (infos)
+    (define (sort-unique lst) lst)
+    (list
+     (sort-unique (filter (lambda (x)
+			    (and (pair? x)
+				 (not (eq? (car x) 'label))))
+			  controller-text))
+     (sort-unique
+      (map cadr
+	   (filter (lambda (x) (eq? (car x) 'reg))
+		   (map cadr
+			(filter (lambda (x) (eq? (car x) 'goto))
+				controller-text)))))
+     (sort-unique
+      (map cadr
+	   (filter (lambda (x) (or (eq? (car x) 'save)
+				   (eq? (car x) 'load)))
+		   controller-text)))
+     (sort-unique
+      (map cddr
+	   (filter (lambda (x) (and (pair? x)
+				    (eq? (car x) 'assign)))
+		   controller-text)))))
+  (cons (infos) (ops)))
+;;Makenewmachine
+((eq? message 'install-instruction-sequence)
+               (lambda (infoinst)
+		 (let ((info (car infoinst))
+		       (seq (cdr infoinst)))
+		   (set! inst-info info)
+		   (set! the-instruction-sequence seq))))
+((eq? message 'instructions-info) inst-info)
+;;Makenewmachine
+
+
 5.13
 
 (define (make-machine ops controller-text)
@@ -345,7 +388,8 @@ afterfib-n-2
               (else (errorf 'Machine "Unknown request: ~s" message))))
       dispatch)))
 
-5.14(define recfact
+5.14
+(define recfact
   (make-machine
    '(n val continue)
    (list (list '= =) (list '- -) (list '* *))
@@ -377,6 +421,8 @@ afterfib-n-2
   (get-register-contents recfact 'val)) ; total/max = 2n-2
 
 ~5.19: Register_Machine*.scm
+
+5.20 ;;free p3 x p1 y p2
 
 5.21
 ;;;a ## tree on (reg search)

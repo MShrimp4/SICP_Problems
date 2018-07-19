@@ -50,12 +50,13 @@
   (let ((pc (make-register 'pc))
         (flag (make-register 'flag))
         (stack (make-stack))
-        (the-instruction-sequence '()))
+        (the-instruction-sequence '())
+	(inst-info '()))
     (let ((the-ops
            (list (list 'initialize-stack
-            (lambda () (stack 'initialize)))
-      (list 'print-stack-statistics
-            (lambda () (stack 'print-statistics)))))
+		       (lambda () (stack 'initialize)))
+		 (list 'print-stack-statistics
+		       (lambda () (stack 'print-statistics)))))
           (register-table
            (list (list 'pc pc) (list 'flag flag))))
       (define (allocate-register name)
@@ -82,11 +83,16 @@
                (set-contents! pc the-instruction-sequence)
                (execute))
               ((eq? message 'install-instruction-sequence)
-               (lambda (seq) (set! the-instruction-sequence seq)))
+               (lambda (infoinst)
+		 (let ((info (car infoinst))
+		       (seq (cdr infoinst)))
+		   (set! inst-info info)
+		   (set! the-instruction-sequence seq))))
               ((eq? message 'allocate-register) allocate-register)
               ((eq? message 'get-register) lookup-register)
               ((eq? message 'install-operations)
                (lambda (ops) (set! the-ops (append the-ops ops))))
+	      ((eq? message 'instructions-info) inst-info)
               ((eq? message 'stack) stack)
               ((eq? message 'operations) the-ops)
               (else (errorf 'Machine "Unknown request: ~s" message))))
@@ -101,10 +107,35 @@
 (define (get-register machine reg-name)
   ((machine 'get-register) reg-name))
 (define (assemble controller-text machine)
-  (extract-labels controller-text
-    (lambda (insts labels)
-      (update-insts! insts labels machine)
-      insts)))
+  (define (ops)
+    (extract-labels controller-text
+		    (lambda (insts labels)
+		      (update-insts! insts labels machine)
+		      insts)))
+  (define (infos) ;;;5.12
+    (define (sort-unique lst) lst)
+    (list
+     (sort-unique (filter (lambda (x) 
+			    (and (pair? x)
+				 (not (eq? (car x) 'label))))
+			  controller-text)) ;;All Insts SUniq
+     (sort-unique
+      (map cadr
+	   (filter (lambda (x) (eq? (car x) 'reg))
+		   (map cadr
+			(filter (lambda (x) (eq? (car x) 'goto))
+				controller-text))))) ;; goto regs
+     (sort-unique
+      (map cadr
+	   (filter (lambda (x) (or (eq? (car x) 'save)
+				   (eq? (car x) 'load)))
+		   controller-text))) ;;sav/res reg
+     (sort-unique
+      (map cddr
+	   (filter (lambda (x) (and (pair? x)
+				    (eq? (car x) 'assign)))
+		   controller-text))))) ;;assign source
+  (cons (infos) (ops)))
 (define (maybe-label inst)
   (if (and (pair? inst) (eq? 'label (car inst)))
       (cadr inst) ; (label smth) -> smth
