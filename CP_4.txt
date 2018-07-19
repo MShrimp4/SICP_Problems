@@ -579,15 +579,41 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 ;;;;;Parsing Natural Language
 (define nouns '(noun student professor cat class))
 (define verbs '(verb studies lectures eats sleeps))
+(define adverbs '(adverb quickly gently roughly))
 (define articles '(article the a))
+(define prepositions '(prep for to in by with))
 (define (parse-sentence)
   (list 'sentence
          (parse-noun-phrase)
-         (parse-word verbs)))
-(define (parse-noun-phrase)
-  (list 'noun-phrase
+         (parse-verb-phrase)))
+(define (parse-simple-noun-phrase)
+  (list 'simple-noun-phrase
         (parse-word articles)
         (parse-word nouns)))
+(define (parse-noun-phrase)
+  (define (maybe-extend noun-phrase)
+    (amb noun-phrase
+         (maybe-extend (list 'noun-phrase
+                             noun-phrase
+                             (parse-prepositional-phrase)))))
+  (maybe-extend (parse-simple-noun-phrase)))
+(define (parse-prepositional-phrase)
+  (list 'prep-phrase
+        (parse-word prepositions)
+        (parse-noun-phrase)))
+(define (parse-verb-phrase)
+  (define (parse-verb)
+    (amb (parse-word verbs)
+	 (list 'verb-phrase
+	       (parse-word adverbs)
+	       (parse-word verbs))))
+  (define (maybe-extend verb-phrase)
+    (amb verb-phrase
+         (maybe-extend (list 'verb-phrase
+                             verb-phrase
+                             (parse-prepositional-phrase)))))
+  (amb
+   (maybe-extend (parse-verb))))
 (define (parse-word word-list)
   (require (not (null? *unparsed*)))
   (require (memq (car *unparsed*) (cdr word-list)))
@@ -601,10 +627,187 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
     (require (null? *unparsed*))
     sent))
 ;;4.45~47 : Checked with internet
+;;4.48 : extended with adverb
+4.49
 
+(define nouns '(noun student professor cat class))
+(define verbs '(verb studies lectures eats sleeps))
+(define articles '(article the a))
+(define (parse-sentence)
+  (list 'sentence
+         (parse-noun-phrase)
+         (parse-word verbs)))
+(define (parse-noun-phrase)
+  (list 'noun-phrase
+        (parse-word articles)
+        (parse-word nouns)))
+(define (parse-word word-list)
+  (require (not (null? *unparsed*)))
+  (let ((found-word (an-element-of (cdr word-list))))
+    (set! *unparsed* (cdr *unparsed*))
+    (list (car word-list) found-word)))
+(define *unparsed* '())
+(define (parse input)
+  (set! *unparsed* input)
+  (let ((sent (parse-sentence)))
+    (require (null? *unparsed*))
+    sent))
+;; ------- RESULT -------
+;;; Amb-Eval input:
+(parse '(bla bla bla))
+
+;;; Starting a new problem 
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun student)) (verb studies))
+
+;;; Amb-Eval input:
+try-again
+
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun student)) (verb lectures))
+
+;;; Amb-Eval input:
+try-again
+
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun student)) (verb eats))
+
+;;; Amb-Eval input:
+try-again
+
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun student)) (verb sleeps))
+
+;;; Amb-Eval input:
+try-again
+
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun professor)) (verb studies))
+
+;;; Amb-Eval input:
+try-again
+
+;;; Amb-Eval value:
+(sentence (noun-phrase (article the) (noun professor)) (verb lectures))
+
+;;; LOOPS INFINITELY. BORING!
+;;; Could use ramb (everywhere including an-element-of)
 
 4.50
+(define (analyze-ramb exp)
+  (let ((cprocs (shuffle (map analyze (amb-choices exp)))))
+    (lambda (env succeed fail)
+      (define (try-next choices)
+        (if (null? choices)
+            (fail)
+            ((car choices) env
+                           succeed
+                           (lambda ()
+                             (try-next (cdr choices))))))
+      (try-next cprocs))))
+(define shuffle ; Returns a randomly re-ordered copy of list.
+  (lambda (list); From Code Immersion website
+    (if (< (length list) 2) 
+        list
+        (let ((item (list-ref list (random (length list)))))
+          (cons item (shuffle (remove item list)))))))
+;;; Use ramb instead of amb and get a nicer result
 
+
+(define nouns '(noun student professor cat class))
+(define verbs '(verb studies lectures eats sleeps))
+(define adverbs '(adverb quickly gently roughly))
+(define articles '(article the a))
+(define prepositions '(prep for to in by with))
+(define (parse-sentence)
+  (list 'sentence
+         (parse-noun-phrase)
+         (parse-verb-phrase)))
+(define (parse-simple-noun-phrase)
+  (list 'simple-noun-phrase
+        (parse-word articles)
+        (parse-word nouns)))
+(define (parse-noun-phrase)
+  (define (maybe-extend noun-phrase)
+    (ramb noun-phrase
+         (maybe-extend (list 'noun-phrase
+                             noun-phrase
+                             (parse-prepositional-phrase)))))
+  (maybe-extend (parse-simple-noun-phrase)))
+(define (parse-prepositional-phrase)
+  (list 'prep-phrase
+        (parse-word prepositions)
+        (parse-noun-phrase)))
+(define (parse-verb-phrase)
+  (define (parse-verb)
+    (ramb (parse-word verbs)
+	 (list 'verb-phrase
+	       (parse-word adverbs)
+	       (parse-word verbs))))
+  (define (maybe-extend verb-phrase)
+    (ramb verb-phrase
+         (maybe-extend (list 'verb-phrase
+                             verb-phrase
+                             (parse-prepositional-phrase)))))
+  (maybe-extend (parse-verb)))
+(define (an-element-of items)
+  (require (not (null? items)))
+  (ramb (car items) (an-element-of (cdr items))))
+(define (parse-word word-list)
+  (require (not (null? *unparsed*)))
+  (let ((found-word (an-element-of (cdr word-list))))
+    (set! *unparsed* (cdr *unparsed*))
+    (list (car word-list) found-word)))
+(define *unparsed* '())
+(define (parse input)
+  (set! *unparsed* input)
+  (let ((sent (parse-sentence)))
+    (require (null? *unparsed*))
+    sent))
+
+
+
+4.51
+(define (permanent-assignment? exp)
+  (tagged-list? exp 'permanent-set!))
+(define (analyze-permanent-assignment exp)
+  (let ((var (assignment-variable exp))
+        (vproc (analyze (assignment-value exp))))
+    (lambda (env succeed fail)
+      (vproc env
+             (lambda (val fail2)        ; *1*
+               (set-variable-value! var val env)
+               (succeed 'ok fail2))
+             fail))))
+;; 1 1 for set!
+
+4.52
+(define (test-fail exp) (cadr exp))
+(define (failed-then exp) (caddr exp))
+(define (if-fail? exp) (tagged-list? exp 'if-fail))
+(define (analyze-if-fail exp)
+  (let ((try (analyze (test-fail exp)))
+	(alt (analyze (failed-then exp))))
+    (lambda (env succeed fail)
+      (try env
+	   (lambda (val fail2)
+	     (succeed val fail2))
+	   (lambda () (alt env succeed fail))))))
+
+4.53
+((8 35) (3 110) (3 20))
+;;Repeatedly conses until psum-pair depletes
+
+4.54
+(define (analyze-require exp)
+  (let ((pproc (analyze (require-predicate exp))))
+    (lambda (env succeed fail)
+      (pproc env
+             (lambda (pred-value fail2)
+               (if (not pred-value)
+                   (fail)
+                   (succeed 'ok fail2)))
+             fail))))
 
 4.55
 (supervisor ?x (Bitdiddle Ben)) ;a
