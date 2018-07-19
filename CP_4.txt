@@ -594,9 +594,17 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
   (let ((found-word (car *unparsed*)))
     (set! *unparsed* (cdr *unparsed*))
     (list (car word-list) found-word)))
+(define *unparsed* '())
+(define (parse input)
+  (set! *unparsed* input)
+  (let ((sent (parse-sentence)))
+    (require (null? *unparsed*))
+    sent))
 ;;4.45~47 : Checked with internet
 
+
 4.50
+
 
 4.55
 (supervisor ?x (Bitdiddle Ben)) ;a
@@ -813,8 +821,7 @@ n(list-ref (solve (lambda (x) x) 1 0.001) 1000)
 ;; (Misread and tried to run on normal order evaluator)
 ;; Amb version would be a good way to represent the code
 ;; Could generate answer in a more sorted way
-;; No duplicates? Maybe.
-
+;; No duplicates? Maybe. No inf.loop though
 
 
 
