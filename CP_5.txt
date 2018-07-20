@@ -591,3 +591,42 @@ ev-cond-last-exp
 ;; Max Depth :   5n + 3
 ;; # of pushes : s(n-1) + s(n-2) + 40
 ;;   	         56fib(n+1) - 40
+
+
+;;;;;;;;;;;;;;;;
+
+5.31 ;;CHECK
+
+5.32
+;;a
+ev-application
+(save continue)
+(assign unev (op operands) (reg exp))
+(assign exp (op operator) (reg exp))
+(test (op symbol?) exp)
+(goto (label just-symbol))
+(save unev)
+(save env)
+(assign
+continue (label ev-appl-did-operator))
+(goto (label eval-dispatch))
+
+just-symbol
+(assign exp (op lookup-variable-value) (reg exp) (reg env))
+(goto (label ev-appl-skip))
+
+ev-appl-did-operator
+(restore env)
+(restore unev)             ; the operands
+ev-appl-skip
+(assign argl (op empty-arglist))
+(assign proc (reg val))    ; the operator
+(test (op no-operands?) (reg unev))
+(branch (label apply-dispatch))
+(save proc)
+
+;;b
+;;That would be horribly slow, continuously checking special cases
+;;Some optimization even needs a lot of codes before and after itself
+
+
