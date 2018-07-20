@@ -590,4 +590,4 @@ ev-cond-last-exp
 5.29
 ;; Max Depth :   5n + 3
 ;; # of pushes : s(n-1) + s(n-2) + 40
-16 72 128 240 408
+;;   	         56fib(n+1) - 40
