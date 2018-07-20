@@ -70,11 +70,40 @@ ev-application
   (assign unev (op operands) (reg exp))
   (save unev)
   (assign exp (op operator) (reg exp))
+  (test (op primitive-procedure?) (reg proc))
+  (branch (label primitive-ev-ap))
+  (test (op compound-procedure?) (reg proc))
+  (branch (label compound-ev-ap))
+  (goto (label unknown-procedure-type))
+primitive-ev-ap;;;LAZY
   (assign
    continue (label ev-appl-did-operator))
+  (goto (label end-ev-ap))
+compound-ev-ap;;;LAZY
+  (assign
+   continue (label ev-appl-did-operator-comp))
+end-ev-ap
+  (goto (label actual-value));;;LAZY
+apply-dispatch
+
+actual-value ;;;LAZY
+  (save continue)
+  (assign continue (label force-it))
   (goto (label eval-dispatch))
 
+force-it ;;;LAZY
+  (test (op thunk?) (reg val))
+  (branch is-thunk)
+  (load continue)
+  (goto (reg continue))
 
+is-thunk ;;;LAZY
+  (assign exp (op thunk-exp) (reg val))
+  (assign env (op thunk-env) (reg val))
+  (load continue)
+  (goto (label actual-value))
+
+;;; PRIMITIVE ;;;LAZY
 ev-appl-did-operator
   (restore unev)             ; the operands
   (restore env)
@@ -83,8 +112,6 @@ ev-appl-did-operator
   (test (op no-operands?) (reg unev))
   (branch (label apply-dispatch))
   (save proc)
-
-
 ev-appl-operand-loop
   (save argl)
   (assign exp
@@ -96,7 +123,7 @@ ev-appl-operand-loop
   (save unev)
   (assign continue 
           (label ev-appl-accumulate-arg))
-  (goto (label eval-dispatch))
+  (goto (label actual-value))
 
 
 ev-appl-accumulate-arg
@@ -116,7 +143,7 @@ ev-appl-accumulate-arg
 ev-appl-last-arg
   (assign continue 
           (label ev-appl-accum-last-arg))
-  (goto (label eval-dispatch))
+  (goto (label actual-value))
 ev-appl-accum-last-arg
   (restore argl)
   (assign argl 
@@ -125,6 +152,64 @@ ev-appl-accum-last-arg
           (reg argl))
   (restore proc)
   (goto (label apply-dispatch))
+;; END OF PRIMITIVE
+
+;;COMPOUND ;;;LAZY
+;;Could optimize here because delay-it does not even change anything
+delay-it
+  (assign val (op delay-it) (reg exp) (reg env))
+  (goto (reg continue))
+
+ev-appl-did-operator-comp
+  (restore unev)             ; the operands
+  (restore env)
+  (assign argl (op empty-arglist))
+  (assign proc (reg val))    ; the operator
+  (test (op no-operands?) (reg unev))
+  (branch (label apply-dispatch))
+  (save proc)
+ev-appl-operand-loop-comp
+  (save argl)
+  (assign exp
+          (op first-operand)
+          (reg unev))
+  (test (op last-operand?) (reg unev))
+  (branch (label ev-appl-last-arg-comp))
+  (save env)
+  (save unev)
+  (assign continue 
+          (label ev-appl-accumulate-arg-comp))
+  (goto (label delay-it))
+
+
+ev-appl-accumulate-arg-comp
+  (restore unev)
+  (restore env)
+  (restore argl)
+  (assign argl 
+          (op adjoin-arg)
+          (reg val)
+          (reg argl))
+  (assign unev
+          (op rest-operands)
+          (reg unev))
+  (goto (label ev-appl-operand-loop-comp))
+
+
+ev-appl-last-arg-comp
+  (assign continue 
+          (label ev-appl-accum-last-arg-comp))
+  (goto (label delay-it))
+ev-appl-accum-last-arg-comp
+  (restore argl)
+  (assign argl 
+          (op adjoin-arg)
+          (reg val)
+          (reg argl))
+  (restore proc)
+  (goto (label apply-dispatch))
+;;; END OF COMPOUND
+
 
 
 apply-dispatch
@@ -217,7 +302,7 @@ ev-if
   (assign continue (label ev-if-decide))
   (assign exp (op if-predicate) (reg exp))
   ; evaluate the predicate:
-  (goto (label eval-dispatch))
+  (goto (label actual-value)) ;;;LAZY
 ev-if-decide
   (restore continue)
   (restore env)
