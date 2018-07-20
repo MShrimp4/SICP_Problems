@@ -201,12 +201,20 @@
                        '<procedure-env>))
         (display object)))
   (define the-global-environment (setup-environment))
+  (define (get-global-environment) the-global-environment)
+  (define (empty-arglist) '())
+  (define (adjoin-arg arg arglist)
+    (append arglist (list arg)))
+  (define (last-operand? ops)
+  (null? (cdr ops)))
   (define eceval-operations
     (list
-     (list 'initialize-stack initialize-stack)
+     (list 'first-exp first-exp)
+     (list 'rest-operands rest-operands)
+     (list 'adjoin-arg adjoin-arg)
      (list 'prompt-for-input prompt-for-input)
      (list 'read read)
-     (list 'get-global-environment  get-global-environment )
+     (list 'get-global-environment  get-global-environment)
      (list 'announce-output announce-output)
      (list 'user-print user-print)
      (list 'self-evaluating? self-evaluating?)
@@ -250,7 +258,7 @@
      (list 'definition-value definition-value)
      (list 'define-variable! define-variable!)))
   (define eceval
-    (make-machine
+    (make-machine #f
      '(exp env val proc argl continue unev)
      eceval-operations
      '(
@@ -556,6 +564,7 @@
        (perform (op user-print) (reg val))
        (goto (label read-eval-print-loop))
        )))
+  eceval
   )
-
+(define eceval (run-eceval))
 
