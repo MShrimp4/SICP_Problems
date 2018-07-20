@@ -571,3 +571,23 @@ ev-cond-last-exp
 
 5.25
 ;;; Explicit-Control_Evaluator_lazy.scm
+
+5.26
+;;; Working_Explicit-control_Evaluator.scm
+;;Max : 32n - 16
+;;# of pushes : 5n + 3
+
+5.27
+;;     | Max Depth | # of pushes
+;;Rec  |  5n + 3   |  32n - 16   
+;;Iter |    10     |  35n + 29
+
+5.28
+;;     | Max Depth | # of pushes
+;;Rec  |  3n + 8   |  34n - 16
+;;Iter |  14n + 3  |  37n + 33
+
+5.29
+;; Max Depth :   5n + 3
+;; # of pushes : s(n-1) + s(n-2) + 40
+16 72 128 240 408

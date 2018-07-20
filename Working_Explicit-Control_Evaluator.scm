@@ -49,6 +49,7 @@
   (define (begin? exp) (tagged-list? exp 'begin))
   (define (begin-actions exp) (cdr exp))
   (define (last-exp? seq) (null? (cdr seq)))
+  (define (no-more-exps? seq) (null? seq))
   (define (first-exp seq) (car seq))
   (define (rest-exps seq) (cdr seq))
   (define (sequence->exp seq)
@@ -176,6 +177,8 @@
           (list '* *)
           (list '/ /)
           (list '= =)
+	  (list '< <)
+	  (list '> >)
           ))
   (define (primitive-procedure-names)
     (map car
@@ -206,9 +209,12 @@
   (define (adjoin-arg arg arglist)
     (append arglist (list arg)))
   (define (last-operand? ops)
-  (null? (cdr ops)))
+    (null? (cdr ops)))
+  (define (print-stack-statistics)
+    ((eceval 'print-stack-statistics)))
   (define eceval-operations
     (list
+     (list 'print-stack-statistics print-stack-statistics)
      (list 'first-exp first-exp)
      (list 'rest-operands rest-operands)
      (list 'adjoin-arg adjoin-arg)
@@ -256,7 +262,8 @@
      (list 'set-variable-value! set-variable-value!)
      (list 'definition-variable definition-variable)
      (list 'definition-value definition-value)
-     (list 'define-variable! define-variable!)))
+     (list 'define-variable! define-variable!)
+     (list 'no-more-exps? no-more-exps?)))
   (define eceval
     (make-machine #f
      '(exp env val proc argl continue unev)
@@ -271,6 +278,7 @@
        (assign continue (label print-result))
        (goto (label eval-dispatch))
        print-result
+       (perform (op print-stack-statistics))
        (perform (op announce-output)
                 (const ";;; EC-Eval value:"))
        (perform (op user-print) (reg val))
@@ -567,4 +575,4 @@
   eceval
   )
 (define eceval (run-eceval))
-
+;(start eceval)
