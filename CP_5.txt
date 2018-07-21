@@ -629,6 +629,9 @@ ev-appl-skip
 ;;That would be horribly slow, continuously checking special cases
 ;;Some optimization even needs a lot of codes before and after itself
 
+5.33
+;;Changes found, but was just a reposition. even amount of save/load action was same
+
 5.36
 ;;R-to-L in vanila
 ;;L-to-R version
@@ -712,18 +715,12 @@ ev-appl-skip
 
 5.38
 ;;;a
-(define (spread-arguments operand-codes)
+(define (spread-arguments operand-code1 operand-code2)
   (append-instruction-sequences
-   (append-instruction-sequences
-    (car operand-codes)
-    (make-instruction-sequence
-     '(val) '(arg1)
-     '((assign arg1 (reg val)))))
+   operand-code1
    (preserving '(arg1)
-	       (cadr operand-codes)
-	       (make-instruction-sequence
-		'(val) '(arg2)
-		'((assign arg2 (reg val)))))))
+	       operand-code2
+	       (empty-instruction-sequence))))
 ;;;b
 ;;Need
 (define (find-primitive op))
@@ -732,7 +729,8 @@ ev-appl-skip
  (compile-primitive-application exp target linkage))
 (define (compile-primitive-application exp target linkage)
   (let ((operator-code (find-primitive (operator exp)))
-	(operand-codes (map (lambda (operand) (compile operand 'val 'next))))))
+	(operand-code1 (compile (car (operand exp)) 'arg1 'next))
+	(operand-code2 (compile (cadr (operand exp))) 'arg2 'next)))
   (end-with-linkage
    linkage
    (append-instruction-sequences
