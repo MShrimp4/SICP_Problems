@@ -629,4 +629,115 @@ ev-appl-skip
 ;;That would be horribly slow, continuously checking special cases
 ;;Some optimization even needs a lot of codes before and after itself
 
+5.36
+;;R-to-L in vanila
+;;L-to-R version
+(define (construct-arglist operand-codes)
+  (if (null? operand-codes)
+      (make-instruction-sequence
+       '() '(argl)
+       '((assign argl (const ()))))
+      (let ((code-head-arg
+	     (append-instruction-sequences
+	      (car operand-codes)
+	      (make-instruction-sequence
+	       '(val) '(argl)
+	       '((assign argl (op list) (reg val))))))))
+      (code-get-args operand-codes)))
+(define (code-get-args operand-codes)
+  (let ((cur-arg-code
+	 (preserving '(argl)
+		     (car operand-codes)
+		     (make-instruction-sequence
+		      '(val argl) '(argl)
+		      '((assign argl (op append) (reg argl) (reg val)))))))
+    (if (null? (cdr operand-codes))
+	cur-arg-code
+	(preserving '(env)
+		    cur-arg-code
+		    (code-get-args (cdr operand-codes))))))
+;;Append is usually an expensive operation, but could be same with implementation of append
+;;Could have problems with (read) in vanila though
+
+
+5.37
+;;Modified preserving
+(define (preserving regs seq1 seq2)
+  (if (null? regs)
+      (append-instruction-sequences seq1 seq2)
+      (let ((first-reg (car regs)))
+        (if (needs-register? seq2 first-reg) 
+            (preserving (cdr regs)
+             (make-instruction-sequence
+              (list-union (list first-reg)
+                          (registers-needed seq1))
+              (list-difference (registers-modified seq1)
+                               (list first-reg))
+              (append `((save ,first-reg))
+                      (statements seq1)
+                      `((restore ,first-reg))))
+             seq2)
+            (preserving (cdr regs) seq1 seq2)))))
+;;;Compiled  (+ 1 2)
+
+((env)
+ (env proc argl continue val)
+ ((assign
+   proc
+   (op lookup-variable-value)
+   (const +)
+   (reg env))
+  (save proc);; added
+  (assign val (const 2))
+  (assign argl (op list) (reg val))
+  (save argl);; added
+  (assign val (const 1))
+  (restore argl);; added
+  (assign argl (op cons) (reg val) (reg argl))
+  (restore proc);; added
+  (test (op primitive-procedure?) (reg proc))
+  (branch (label primitive-branch62))
+  compiled-branch61
+  (assign continue (label after-call60))
+  (assign val (op compiled-procedure-entry) (reg proc))
+  (goto (reg val))
+  primitive-branch62
+  (assign
+   val
+   (op apply-primitive-procedure)
+   (reg proc)
+   (reg argl))
+  after-call60))
+
+
+5.38
+;;;a
+(define (spread-arguments operand-codes)
+  (append-instruction-sequences
+   (append-instruction-sequences
+    (car operand-codes)
+    (make-instruction-sequence
+     '(val) '(arg1)
+     '((assign arg1 (reg val)))))
+   (preserving '(arg1)
+	       (cadr operand-codes)
+	       (make-instruction-sequence
+		'(val) '(arg2)
+		'((assign arg2 (reg val)))))))
+;;;b
+;;Need
+(define (find-primitive op))
+;;cond
+((primitive-application? exp)
+ (compile-primitive-application exp target linkage))
+(define (compile-primitive-application exp target linkage)
+  (let ((operator-code (find-primitive (operator exp)))
+	(operand-codes (map (lambda (operand) (compile operand 'val 'next))))))
+  (end-with-linkage
+   linkage
+   (append-instruction-sequences
+    (spread-arguments operand-codes)
+    `(assign val (op ,operator-code) (reg arg1) (reg arg2)))))
+
+
 
