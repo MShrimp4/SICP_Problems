@@ -115,3 +115,5 @@
         null-value
         (combiner (term a) (rec (next a)))))
   (rec a))
+
+;;;;Other answers are lost, done in Interactive SICP
