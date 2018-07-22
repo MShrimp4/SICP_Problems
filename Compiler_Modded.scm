@@ -1,26 +1,104 @@
 ;;;Needs meta-eval functions
 
-(define (compile exp target linkage)
+(define (compile exp target linkage penv)
   (cond ((self-evaluating? exp)
          (compile-self-evaluating exp target linkage))
         ((quoted? exp) (compile-quoted exp target linkage))
         ((variable? exp)
-         (compile-variable exp target linkage))
+         (compile-variable exp target linkage penv))
         ((assignment? exp)
-         (compile-assignment exp target linkage))
+         (compile-assignment exp target linkage penv))
         ((definition? exp)
-         (compile-definition exp target linkage))
-        ((if? exp) (compile-if exp target linkage))
-        ((lambda? exp) (compile-lambda exp target linkage))
+         (compile-definition exp target linkage penv))
+        ((if? exp) (compile-if exp target linkage penv))
+        ((lambda? exp) (compile-lambda exp target linkage penv))
         ((begin? exp)
          (compile-sequence (begin-actions exp)
                            target
-                           linkage))
+                           linkage
+			   penv))
         ((cond? exp) (compile (cond->if exp) target linkage))
+	((and (primitive-application? exp)
+	      (eq? (find-variable (operator exp) 'not-found)))
+	 (compile-primitive-application exp target linkage penv)) ;;modded
         ((application? exp)
-         (compile-application exp target linkage))
+         (compile-application exp target linkage penv))
         (else
          (error "Unknown expression type -- COMPILE" exp))))
+
+(define (lexical-address-lookup addr env)
+  (define (lex-search f-ind v-ind env)
+    (let* ((frame (list-ref f-ind env))
+	   (val (list-ref v-ind frame)))
+      (if (eq? val '*unassigned*)
+	  (errorf 'lexical-address-lookup
+		  "Value unassigned - ~s" addr)
+	  val)))
+  (lex-search (car addr) (cdr addr) env))
+
+(define (list-pair-ref addr lst)
+  (if (= addr 0)
+      lst
+      (list-pair-ref (- addr 1) (cdr lst))))
+(define (lexical-address-set! addr value env)
+  (define (lex-search f-ind v-ind env)
+    (let* ((frame (list-ref f-ind env))
+	   (val-p (list-pair-ref v-ind frame)))
+      (set-car! val-p value)))
+  (lex-search (car addr) (cdr addr) env))
+(define (find-variable var env)
+  (define (locate f-ind v-ind vars env)
+    (cond ((null? vars)
+	   (if (null? env)
+	       'not-found
+	       (locate (+ f-ind 1) 0 (car env) (cdr env))))
+	  ((eq? (car vars) var)
+ 	   (cons f-ind v-ind))
+	  (else
+	   (locate f-ind (+ v-ind 1) (cdr vars) env))))
+  (if (null? env) 'not-found (locate 0 0 (car env) (cdr env))))
+
+
+(define primitive-compile '(+ - / *)) ;;;MOD
+(define (find-primitive op) op)
+(define (primitive-application? exp) (memq (car exp) primitive-compile))
+
+(define (spread-arguments operand-code1 operand-code2)
+  (append-instruction-sequences
+   operand-code1
+   (preserving '(arg1)
+	       operand-code2
+	       (make-instruction-sequence
+		'(arg1) '() '()))))
+
+
+(define (compile-primitive-application exp target linkage penv)
+  (let ((operator-code (find-primitive (operator exp)))
+	(operand-code1 (compile (car (operands exp)) 'arg1 'next penv))
+	(operand-code2 (compile (cadr (operands exp)) 'arg2 'next penv))
+	(rest (cddr (operands exp))))
+    (define (compile-prim-n operand-code1 operand-code2 rest)
+      (if (null? rest)
+	  (append-instruction-sequences
+	   (spread-arguments operand-code1 operand-code2)
+	   (make-instruction-sequence
+	    '(arg1 arg2) '(val)
+	    `((assign val (op ,operator-code) (reg arg1) (reg arg2)))))
+	  (compile-prim-n
+	   (append-instruction-sequences
+	    (spread-arguments operand-code1 operand-code2)
+	    (make-instruction-sequence
+	     '(arg1 arg2) '(arg1)
+	     `((assign arg1 (op ,operator-code) (reg arg1) (reg arg2)))))
+	   (compile (car rest) 'arg2 'next penv)
+	   (cdr rest))))
+    (end-with-linkage
+     linkage
+     (compile-prim-n operand-code1 operand-code2 rest)
+     )))
+
+
+
 
 (define (compile-linkage linkage)
   (cond ((eq? linkage 'return)
@@ -46,31 +124,53 @@
   (end-with-linkage linkage
    (make-instruction-sequence '() (list target)
     `((assign ,target (const ,(text-of-quotation exp)))))))
-(define (compile-variable exp target linkage)
-  (end-with-linkage linkage
-   (make-instruction-sequence '(env) (list target)
-    `((assign ,target
-              (op lookup-variable-value)
-              (const ,exp)
-              (reg env))))))
+(define (compile-variable exp target linkage penv)
+  (end-with-linkage
+   linkage
+   (let ((addr (find-variable exp  penv)))
+     (if (eq? addr 'not-found)
+	 (make-instruction-sequence
+	  '(env) (list target)
+	  `((assign ,target
+		    (op lookup-variable-value)
+		    (const ,exp)
+		    (reg env))))
+	 (make-instruction-sequence
+	  '(env) (list target)
+	  `((assign ,target
+		    (op lexical-address-lookup)
+		    (const ,addr)
+		    (reg env))))))))
 
-(define (compile-assignment exp target linkage)
+(define (compile-assignment exp target linkage penv)
   (let ((var (assignment-variable exp))
         (get-value-code
-         (compile (assignment-value exp) 'val 'next)))
-    (end-with-linkage linkage
-     (preserving '(env)
+         (compile (assignment-value exp) 'val 'next penv)))
+    (end-with-linkage
+     linkage
+     (preserving
+      '(env)
       get-value-code
-      (make-instruction-sequence '(env val) (list target)
-       `((perform (op set-variable-value!)
-                  (const ,var)
-                  (reg val)
-                  (reg env))
-         (assign ,target (const ok))))))))
-(define (compile-definition exp target linkage)
+      (let ((addr (find-variable var penv)))
+	(if (eq? var 'not-found)
+	    (make-instruction-sequence
+	     '(env val) (list target)
+	     `((perform (op set-variable-value!)
+			(const ,var)
+			(reg val)
+			(reg env))
+               (assign ,target (const ok))))
+	    (make-instruction-sequence
+	     '(env val) (list target)
+	     `((perform (op lexical-address-set!)
+			(const ,addr)
+			(reg val)
+			(reg env))
+               (assign ,target (const ok))))))))))
+(define (compile-definition exp target linkage penv)
   (let ((var (definition-variable exp))
         (get-value-code
-         (compile (definition-value exp) 'val 'next)))
+         (compile (definition-value exp) 'val 'next penv)))
     (end-with-linkage linkage
      (preserving '(env)
       get-value-code
@@ -81,18 +181,18 @@
                   (reg env))
          (assign ,target (const ok))))))))
 
-(define (compile-if exp target linkage)
+(define (compile-if exp target linkage penv)
   (let ((t-branch (make-label 'true-branch))
         (f-branch (make-label 'false-branch))                    
         (after-if (make-label 'after-if)))
     (let ((consequent-linkage
            (if (eq? linkage 'next) after-if linkage)))
-      (let ((p-code (compile (if-predicate exp) 'val 'next))
+      (let ((p-code (compile (if-predicate exp) 'val 'next penv))
             (c-code
              (compile
               (if-consequent exp) target consequent-linkage))
             (a-code
-             (compile (if-alternative exp) target linkage)))
+             (compile (if-alternative exp) target linkage penv)))
         (preserving '(env continue)
          p-code
          (append-instruction-sequences
@@ -104,14 +204,14 @@
            (append-instruction-sequences f-branch a-code))
           after-if))))))
 
-(define (compile-sequence seq target linkage)
+(define (compile-sequence seq target linkage penv)
   (if (last-exp? seq)
-      (compile (first-exp seq) target linkage)
+      (compile (first-exp seq) target linkage penv)
       (preserving '(env continue)
-       (compile (first-exp seq) target 'next)
+       (compile (first-exp seq) target 'next penv)
        (compile-sequence (rest-exps seq) target linkage))))
 
-(define (compile-lambda exp target linkage)
+(define (compile-lambda exp target linkage penv)
   (let ((proc-entry (make-label 'entry))
         (after-lambda (make-label 'after-lambda)))
     (let ((lambda-linkage
@@ -124,10 +224,11 @@
                     (op make-compiled-procedure)
                     (label ,proc-entry)
                     (reg env)))))
-        (compile-lambda-body exp proc-entry))
+        (compile-lambda-body exp proc-entry penv))
        after-lambda))))
 
-(define (compile-lambda-body exp proc-entry)
+(define (extend-penv penv frame) (cons frame penv))
+(define (compile-lambda-body exp proc-entry penv)
   (let ((formals (lambda-parameters exp)))
     (append-instruction-sequences
      (make-instruction-sequence '(env proc argl) '(env)
@@ -138,12 +239,12 @@
                 (const ,formals)
                 (reg argl)
                 (reg env))))
-     (compile-sequence (lambda-body exp) 'val 'return))))
+     (compile-sequence (lambda-body exp) 'val 'return (extend-penv formals penv)))))
 
-(define (compile-application exp target linkage)
-  (let ((proc-code (compile (operator exp) 'proc 'next))
+(define (compile-application exp target linkage penv)
+  (let ((proc-code (compile (operator exp) 'proc 'next penv))
         (operand-codes
-         (map (lambda (operand) (compile operand 'val 'next))
+         (map (lambda (operand) (compile operand 'val 'next penv))
               (operands exp))))
     (preserving '(env continue)
      proc-code

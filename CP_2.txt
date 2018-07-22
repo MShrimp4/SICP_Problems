@@ -1,5 +1,3 @@
-<여기 푼게 있어야 - 분수 arithmetic>
-
 2.17
 (define (last-pair l)
   (if (null? (cdr l)) l (last-pair (cdr l))))
@@ -638,3 +636,92 @@
 ;;;Generic - adding ops is easy, compact
 ;;;Message-passing - adding new types is easy
 ;;;Data-directed - adding new types/ops is easy enough
+
+2.77
+;;Matches from complex-package but those 4 ops are hidden under complex package
+
+2.78
+(define (attach-tag type-tag contents)
+  (if (eq? type-tag 'scheme-number)
+      contents
+      (cons type-tag contents)))
+
+(define (type-tag datum)
+  (if (pair? datum)
+      (car datum)
+      (if (number? datum)
+	  'scheme-number
+	  (error "Bad tagged datum -- TYPE-TAG" datum))))
+
+(define (contents datum)
+  (if (pair? datum)
+      (cdr datum)
+      (if (number? datum)
+	  datum
+	  (error "Bad tagged datum -- CONTENTS" datum))))
+
+2.79
+;;ordinary
+(put 'equ? '(scheme-number scheme-number) =)
+;;Given
+
+;;rational
+(define (equ? x y)
+  (= (* (numer x) (denom y))
+     (* (denom x) (numer y))))
+(put 'equ? '(rational rational) equ?)
+
+;;complex
+(define (equ? z1 z2)
+  (and (= (real-part z1) (real-part z2))
+       (= (imag-part z1) (imag-part z2))))
+(put 'equ? '(complex complex) equ?)
+;;This is weird, because of the floting point problem
+
+2.80
+;;ordinary
+(put '=zero? '(scheme-number) (lambda (x) (= x 0)))
+
+;;rational
+(define (=zero? x)
+  (= (numer x) 0))
+(put '=zero? '(rational) =zero?)
+
+;;complex
+(define (=zero? x) (= (magnitude x) 0))
+(put '=zero? '(complex) =zero?)
+
+2.81
+;;a : inf-loop (Here we go again!)
+;;b : Louis was wrong, because apply-generic calls proper proc before searching
+;;    any coercing functions.
+;;c :
+(define (apply-generic op . args)
+  (let ((type-tags (map type-tag args)))
+    (let ((proc (get op type-tags)))
+      (if proc
+          (apply proc (map contents args))
+          (if (= (length args) 2)
+              (let ((type1 (car type-tags))
+                    (type2 (cadr type-tags))
+                    (a1 (car args))
+                    (a2 (cadr args)))
+		(if (eq? type1 type2)
+		    (errorf 'apply-generic "No proper operation")
+                    (let ((t1->t2 (get-coercion type1 type2))
+			  (t2->t1 (get-coercion type2 type1)))
+                      (cond (t1->t2
+                             (apply-generic op (t1->t2 a1) a2))
+                            (t2->t1
+                             (apply-generic op a1 (t2->t1 a2)))
+                            (else
+                             (error "No method for these types"
+                                    (list op type-tags)))))))
+              (error "No method for these types"
+                     (list op type-tags)))))))
+
+2.82
+;;Skipping implementation.
+;;Will not work for circumstances when they have to convert into types other than themselves
+
+;;2.83~ : skipping. Just read the problem.

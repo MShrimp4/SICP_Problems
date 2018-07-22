@@ -632,6 +632,15 @@ ev-appl-skip
 5.33
 ;;Changes found, but was just a reposition. even amount of save/load action was same
 
+5.34
+;;Rec Version calls itself before termination, but Iter version just assigns iter
+;;and calls itself again without any leftovers.
+;;Iter version is longer than rec version though.
+
+5.35
+(define (f x)
+  (+ x (g (+ x 2))))
+
 5.36
 ;;R-to-L in vanila
 ;;L-to-R version
@@ -720,22 +729,286 @@ ev-appl-skip
    operand-code1
    (preserving '(arg1)
 	       operand-code2
-	       (empty-instruction-sequence))))
+	       (make-instruction-sequence
+		'(arg1) '() '()))))
 ;;;b
 ;;Need
-(define (find-primitive op))
+(define primitive-compile '(+ - / *))
+(define (find-primitive op) op)
+(define (primitive-application? exp) (memq (car exp) primitive-compile))
 ;;cond
 ((primitive-application? exp)
  (compile-primitive-application exp target linkage))
+;;main
 (define (compile-primitive-application exp target linkage)
   (let ((operator-code (find-primitive (operator exp)))
-	(operand-code1 (compile (car (operand exp)) 'arg1 'next))
-	(operand-code2 (compile (cadr (operand exp))) 'arg2 'next)))
+	(operand-code1 (compile (car (operands exp)) 'arg1 'next))
+	(operand-code2 (compile (cadr (operands exp)) 'arg2 'next)))
+    (end-with-linkage
+     linkage
+     (append-instruction-sequences
+      (spread-arguments operand-code1 operand-code2)
+      (make-instruction-sequence
+       '(arg1 arg2) '(val)
+       `((assign val (op ,operator-code) (reg arg1) (reg arg2))))))))
+
+
+;;;c
+   (assign
+     arg1
+     (op lookup-variable-value)
+     (const counter)
+     (reg env))
+   (assign arg2 (const 1))
+   (assign val (op +) (reg arg1) (reg arg2))
+
+;;;d
+(define (compile-primitive-application exp target linkage)
+  (let ((operator-code (find-primitive (operator exp)))
+	(operand-code1 (compile (car (operands exp)) 'arg1 'next))
+	(operand-code2 (compile (cadr (operands exp)) 'arg2 'next))
+	(rest (cddr (operands exp))))
+    (define (compile-prim-n operand-code1 operand-code2 rest)
+      (if (null? rest)
+	  (append-instruction-sequences
+	   (spread-arguments operand-code1 operand-code2)
+	   (make-instruction-sequence
+	    '(arg1 arg2) '(val)
+	    `((assign val (op ,operator-code) (reg arg1) (reg arg2)))))
+	  (compile-prim-n
+	   (append-instruction-sequences
+	    (spread-arguments operand-code1 operand-code2)
+	    (make-instruction-sequence
+	     '(arg1 arg2) '(arg1)
+	     `((assign arg1 (op ,operator-code) (reg arg1) (reg arg2)))))
+	   (compile (car rest) 'arg2 'next)
+	   (cdr rest))))
+    (end-with-linkage
+     linkage
+     (compile-prim-n operand-code1 operand-code2 rest)
+     )))
+
+;;;RESULT - (+ 1 2 3)
+((assign arg1 (const 1))
+ (assign arg2 (const 2))
+ (assign arg1 (op +) (reg arg1) (reg arg2))
+ (assign arg2 (const 3))
+ (assign val (op +) (reg arg1) (reg arg2)))
+;;;RESULT - (+ (+ 1 2 3))
+(assign arg1 (const 1))
+(save arg1)
+(assign arg1 (const 1))
+(assign arg2 (const 2))
+(assign val (op +) (reg arg1) (reg arg2))
+(restore arg1)
+(assign arg1 (op +) (reg arg1) (reg arg2))
+(assign arg2 (const 3))
+(assign val (op +) (reg arg1) (reg arg2))
+
+
+5.39
+
+(define (lexical-address-lookup addr env)
+  (define (lex-search f-ind v-ind env)
+    (let* ((frame (list-ref f-ind env))
+	   (val (list-ref v-ind frame)))
+      (if (eq? val '*unassigned*)
+	  (errorf 'lexical-address-lookup
+		  "Value unassigned - ~s" addr)
+	  val)))
+  (lex-search (car addr) (cdr addr) env))
+
+(define (list-pair-ref addr lst)
+  (if (= addr 0)
+      lst
+      (list-pair-ref (- addr 1) (cdr lst))))
+(define (lexical-address-set! addr value env)
+  (define (lex-search f-ind v-ind env)
+    (let* ((frame (list-ref f-ind env))
+	   (val-p (list-pair-ref v-ind frame)))
+      (set-car! val-p value)))
+  (lex-search (car addr) (cdr addr) env))
+
+5.40
+(define (extend-penv penv frame) (cons frame penv))
+(define (compile-lambda-body exp proc-entry penv)
+  (let ((formals (lambda-parameters exp)))
+    (append-instruction-sequences
+     (make-instruction-sequence '(env proc argl) '(env)
+      `(,proc-entry
+        (assign env (op compiled-procedure-env) (reg proc))
+        (assign env
+                (op extend-environment)
+                (const ,formals)
+                (reg argl)
+                (reg env))))
+     (compile-sequence (lambda-body exp) 'val 'return
+		       (extend-penv penv formals)))))
+
+
+5.41
+(define (find-variable var env)
+  (define (locate f-ind v-ind vars env)
+    (cond ((null? vars)
+	   (if (null? env)
+	       'not-found
+	       (locate (+ f-ind 1) 0 (car env) (cdr env))))
+	  ((eq? (car vars) var)
+ 	   (cons f-ind v-ind))
+	  (else
+	   (locate f-ind (+ v-ind 1) (cdr vars) env))))
+  (if (null? env) 'not-found (locate 0 0 (car env) (cdr env))))
+
+
+
+
+5.42
+(define (compile-variable exp target linkage penv)
   (end-with-linkage
    linkage
-   (append-instruction-sequences
-    (spread-arguments operand-codes)
-    `(assign val (op ,operator-code) (reg arg1) (reg arg2)))))
+   (let ((addr (find-variable exp  penv)))
+     (if (eq? addr 'not-found)
+	 (make-instruction-sequence
+	  '(env) (list target)
+	  `((assign ,target
+		    (op lookup-variable-value)
+		    (const ,exp)
+		    (reg env))))
+	 (make-instruction-sequence
+	  '(env) (list target)
+	  `((assign ,target
+		    (op lexical-address-lookup)
+		    (const ,addr)
+		    (reg env))))))))
 
+(define (compile-assignment exp target linkage penv)
+  (let ((var (assignment-variable exp))
+        (get-value-code
+         (compile (assignment-value exp) 'val 'next) penv))
+    (end-with-linkage
+     linkage
+     (preserving
+      '(env)
+      get-value-code
+      (let ((addr (find-variable var penv)))
+	(if (eq? var 'not-found)
+	    (make-instruction-sequence
+	     '(env val) (list target)
+	     `((perform (op set-variable-value!)
+			(const ,var)
+			(reg val)
+			(reg env))
+               (assign ,target (const ok))))
+	    (make-instruction-sequence
+	     '(env val) (list target)
+	     `((perform (op lexical-address-set!)
+			(const ,addr)
+			(reg val)
+			(reg env))
+               (assign ,target (const ok))))))))))
 
+;;;5.43 ;Maybe reuse the code? maybe.
 
+5.44
+;;compile modification
+((and (primitive-application? exp)
+	      (eq? (find-variable (operator exp) 'not-found)))
+	 (compile-primitive-application exp target linkage penv))
+
+5.45
+;;;a
+;;Compiled
+;;total pushes : 6n+7
+;;maximum depth: 3
+;;Interpreted
+;;total pushes : 35n+99
+;;maximum depth: 10
+;;Hand-tailored
+;;total pushes : 0
+;;maximum depth: 0
+
+;;Interpreted/Compiled = 35/6
+;;Cannot say about ratio with hand-tailored version
+;;doesnt even uses stack!
+
+;;b - Maybe use surplus registers to keep values
+;;    Inline functions
+;;    Values as registered.
+
+5.46
+;;Compiled
+;;Tot.push :10fib(n+1)-3
+;;Max.depth:3n-1
+;;Interpreted
+;;Tot.push :56fib(n+1)-40
+;;Max.depth:5n+3
+;;Hand-Tailored
+;;Tot.push :4fib(n+1)-4
+;;Max.depth:2n-2
+
+5.47
+(define (compile-procedure-call target linkage)
+  (let ((primitive-branch (make-label 'primitive-branch))
+        (compiled-branch (make-label 'compiled-branch))
+	(compound-branch (make-label 'compound-branch))
+	(after-compapp (make-label 'after-compapp))
+        (after-call (make-label 'after-call)))
+    (let ((compiled-linkage
+           (if (eq? linkage 'next) after-call linkage)))
+      (append-instruction-sequences
+       (make-instruction-sequence '(proc) '()
+				  `((test (op primitive-procedure?) (reg proc))
+				    (branch (label ,primitive-branch))
+				    (test (op compound-procedure?) (reg proc))
+				    (branch (label ,compound-branch))))
+       (parallel-instruction-sequences
+        (append-instruction-sequences
+         compiled-branch
+         (compile-proc-appl target compiled-linkage))
+	(parallel-instruction-sequences
+	 (append-instruction-sequences
+	  compound-branch
+	  (if (eq? target 'val)
+	      (end-with-linkage
+	       compiled-linkage
+	       (make-instruction-sequence
+		'(proc argl) all-regs
+		`((assign continue (label ,after-call))
+		  (goto (reg compapp)))))
+	      (append-instruction-sequences
+	       (make-instruction-sequence
+		'(proc argl) `(,target continue)
+		`((assign continue (label ,after-compapp))
+		  (goto (reg compapp))))
+	       after-compapp
+	       (make-instruction-sequence
+		'(val) (list target)
+		`((assign ,target (reg val)))))))
+         (append-instruction-sequences
+          primitive-branch
+          (end-with-linkage linkage
+			    (make-instruction-sequence
+			     '(proc argl) (list target)
+			     `((assign ,target
+				       (op apply-primitive-procedure)
+				       (reg proc)
+				       (reg argl))))))))
+       after-call))))
+
+;;~5.49 : 5.5.7_Eval_n_Compile.scm
+5.50 ;;EX_5.50.scm, 5.5.7_Eval_n_Compile.scm
+
+5.51
+;;아이디어
+
+;;구조체로 타입 들고 있게 하자
+;;사실상 eval,apply와 그 procedure에서 언급되는 함수만 남기고 바꿔야 함
+;;전역변수로 malloc한 것들을 남기고 REPL 한바퀴마다 전역변수 + 함수에 없는 malloc을 지우는 식으로 구현해야겠다
+;;lambda 의 env는 env-stick이라는 공간과 var-plane이라는 공간을 받고
+;;env-stick은 var-plane(frame이다)을 반대로 뒤집힌 array로 갖고 있고 가장 가까운 frame의 포인터도 표시한다
+;;var-plane은 pair로 묶인 var와 val을 다시 pair로 묶인 linked list 로 갖게 한다
+
+5.52
+;;아이디어
+
+;;그냥 C에 있는 goto 쓰면 되긴 하는데 어쨌든 명령에도 타입 필요해서 1:1하기는 어렵고 5.51만들면서 생긴 함수 써야 한다
