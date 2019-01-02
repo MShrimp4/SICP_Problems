@@ -8,9 +8,9 @@
 
 t_obj _make_typed_obj(int t, void* mallocd_data);
 
-void _free_typed_obj(t_obj o);
-
 t_obj t_dupe(t_obj o);
+
+t_obj t_shallow_dupe(t_obj o);
 
 t_obj t_float(float f);
 

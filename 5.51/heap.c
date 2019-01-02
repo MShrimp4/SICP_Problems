@@ -2,32 +2,83 @@
 #include <stdlib.h>
 #include "struct_def.h"
 #include "types.h"
+#include "heap.h"
 
-size_t pair_count;
-_t_pair * heap;
-_t_pair * current;
-_t_pair * end;
+typedef char byte;
 
-_t_pair * init_heap(size_t size){
-    pair_count = size;
-    heap = (_t_pair *) malloc(size * sizeof(_t_pair));
-    current = heap;
-    end = heap + size;
-    return heap;
+#define PAIR_FULL 0.97
+#define ALLOC_FULL 0.80
+
+#define MAX_ROOT 12
+t_obj *gc_root[MAX_ROOT];
+size_t root_count;
+
+size_t pair_size;
+size_t alloc_size;
+_t_pair * pair_start;
+_t_pair * pair_current;
+_t_pair * pair_end;
+byte * alloc_start;
+byte * alloc_current;
+byte * alloc_end;
+
+_t_pair * init_heap(size_t p_size, size_t a_size){
+  pair_size = p_size - (p_size % sizeof(_t_pair));
+  pair_start = (_t_pair *) malloc(pair_size); // 
+  pair_current = pair_start;
+  pair_end = pair_start + (p_size / sizeof(_t_pair));
+
+  alloc_size = a_size;
+  alloc_start = (byte *) malloc(alloc_size);
+  alloc_current = alloc_start;
+  alloc_end = alloc_start + alloc_size;
+  return pair_start;
 }
 
-_t_pair* make_pair(){
-    if (current > end){
-      perror("Pair Heap Full , make_pair()");
-      exit(1);
+void set_gc_root(t_obj * roots[], size_t count){
+  if(count > MAX_ROOT) {
+    perror("Too much root nodes");
+    exit(1);
+  }
+  else{
+    root_count = count;
+    for(size_t i = 0; i < count; i++){
+      gc_root[i] = roots[i];
     }
-    _t_pair* new_pair = current;
-    current++;
+  }
+}
+
+_t_pair * make_pair(){
+  /*
+    if(pair_current >= pair_end){
+      perror("Pair Full");
+      exit(1);
+      }*/
+    _t_pair* new_pair = pair_current;
+    pair_current++;
     return new_pair;
+}
+
+void * h_alloc(size_t size){
+  /*if((alloc_current + size) > alloc_end){
+    perror("Alloc Full");
+    exit(1);
+    }*/
+  if((alloc_current + size) > alloc_end){
+    perror("Allocating size too big");
+    exit(1);
+  }
+  void * allocated = (void *) alloc_current;
+  alloc_current += size;
+  return allocated;
 }
 
 t_obj t_broken_heart(_t_pair* new_location){
   return _make_typed_obj(Broken_Heart, new_location);
+}
+
+bool isBrokenHeart(t_obj o){
+  return o.t == Broken_Heart;
 }
 
 _t_pair p_broken_heart(_t_pair* new_location){
@@ -37,36 +88,36 @@ _t_pair p_broken_heart(_t_pair* new_location){
   return p;
 }
 
-bool isBrokenHeart(t_obj p){
-  _t_pair * pair = (_t_pair*)p.data;
-  return pair->car.t == Broken_Heart;
+bool isLinkBroken(t_obj pair){
+  _t_pair * pair_on_heap = pair.data;
+  return isBrokenHeart(pair_on_heap->car);
 }
 
 void relocate(t_obj* p){
   _t_pair * broken_heart = (_t_pair*) p->data;
-  if(broken_heart->car.t != Broken_Heart){
-    perror("Broken Heart err");
-    exit(1);
-  }
   _t_pair * new_location = (_t_pair*) broken_heart->car.data;
   p->data = new_location;
 }
 
-void free_pairs_left(_t_pair * prev_heap,_t_pair * prev_end){
-  for(_t_pair * i = prev_heap;i <= prev_end;i++){
-    _free_typed_obj(i->car);
-    _free_typed_obj(i->cdr);
-      }
+void dupe_or_relocate(t_obj * p){
+  if(isAnyPair(*p)){
+    relocate(p);
+  }
+  else{
+    *p = t_shallow_dupe(*p);
+  }
 }
 
 void move_pair(t_obj* pair){
-  if(pair->t == Broken_Heart) return;
   _t_pair * new_location = make_pair();
-  *new_location = *(_t_pair*)(pair->data);
+  //*new_location = *(_t_pair*)(pair->data);
+  _t_pair * old_location = (_t_pair*)(pair->data);
+  new_location->car = t_shallow_dupe(old_location->car);
+  new_location->cdr = t_shallow_dupe(old_location->cdr);
 
-  *(_t_pair*)(pair->data) = p_broken_heart(new_location);
+  *old_location = p_broken_heart(new_location);
   if(isAnyPair(new_location->car)){
-    if(isBrokenHeart(new_location->car)){
+    if(isLinkBroken(new_location->car)){
       relocate(&new_location->car);
     }
     else{
@@ -75,7 +126,7 @@ void move_pair(t_obj* pair){
     }
   }
   if(isAnyPair(new_location->cdr)){
-    if(isBrokenHeart(new_location->cdr)){
+    if(isLinkBroken(new_location->cdr)){
       relocate(&new_location->cdr);
     }
     else{
@@ -85,28 +136,34 @@ void move_pair(t_obj* pair){
   }
 }
 
-_t_pair * heart_breaker(t_obj * _global_env){
-  _t_pair * prev_heap = heap;
-  _t_pair * prev_current = current;
-  if(init_heap(pair_count) == NULL){
-    perror("Pair Heap Full, heart_breaker()");
+bool isHeapFull(){
+  return ((float)(pair_current - pair_start)/ (float) (pair_end - pair_start)) > PAIR_FULL || ((float)(alloc_current - alloc_start)/ (float) alloc_size) > ALLOC_FULL;
+}
+
+_t_pair * heart_breaker(){
+  _t_pair * prev_heap = pair_start;
+  byte * prev_alloc = alloc_start;
+  if(init_heap(pair_size,alloc_size) == NULL){
+    perror("Allocation failed, heart_breaker()");
     exit(1);
   }
-  move_pair(_global_env);
-  relocate(_global_env);
-  free_pairs_left(prev_heap,prev_current);
+  for(size_t i = 0; i < root_count; i++){
+    if (isAnyPair(*gc_root[i]) && !isLinkBroken(*gc_root[i])) move_pair(gc_root[i]);
+    dupe_or_relocate(gc_root[i]);
+  }
   free(prev_heap);
-  return heap;
+  free(prev_alloc);
+  return pair_start;
 }
 
 _t_pair * _heap(){
-  return heap;
+  return pair_start;
 }
 
 _t_pair * _heap_current(){
-  return current;
+  return pair_current;
 }
 
 _t_pair * _heap_end(){
-  return end;
+  return pair_end;
 }

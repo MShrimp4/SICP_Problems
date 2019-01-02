@@ -13,17 +13,6 @@ t_obj _make_typed_obj(int t, void* mallocd_data){
     return o;
 }
 
-void _free_typed_obj(t_obj o){
-  //Remove stdlib.h
-  switch(o.t){
-  case Symbol:
-  case Vector:
-    free(o.data);
-  default:
-    break;
-  }
-}
-
 t_obj t_dupe(t_obj o){
   t_obj dupe_pair;
   switch(o.t){
@@ -38,6 +27,17 @@ t_obj t_dupe(t_obj o){
     dupe_pair = t_pair(t_dupe(Car(o)), t_dupe(Cdr(o)));
     dupe_pair.t = o.t;
     return dupe_pair;
+  default:
+    return o; //Unimplemented
+  }
+}
+
+t_obj t_shallow_dupe(t_obj o){
+  switch(o.t){
+  case Symbol:
+    return t_symbol((char*)o.data);
+  case Vector:
+    return o; //TODO
   default:
     return o; //Unimplemented
   }
@@ -58,13 +58,13 @@ t_obj t_int(int i){
 
 t_obj t_symbol(char * s){
     size_t size = sizeof(char) * (strlen(s) + 1);
-    char* c_p = (char *)malloc(size);
+    char* c_p = (char *)h_alloc(size);
     memcpy(c_p, s, size); //strdup?
     return _make_typed_obj(Symbol,c_p);
 }
 
 t_obj t_vector_vacant(size_t len){
-    t_vec * vector = malloc(sizeof(t_vec) + sizeof(t_obj) * len);
+    t_vec * vector = h_alloc(sizeof(t_vec) + sizeof(t_obj) * len);
     vector->len = len;
     return _make_typed_obj(Vector, (void *)vector);
 }
@@ -81,7 +81,6 @@ t_obj Car(t_obj p){
 }
 
 void set_car(t_obj p, t_obj val){
-  _free_typed_obj(Car(p));
   ((_t_pair*)(p.data))->car = val;
 }
 
@@ -90,7 +89,6 @@ t_obj Cdr(t_obj p){
 }
 
 void set_cdr(t_obj p, t_obj val){
-  _free_typed_obj(Cdr(p));
   ((_t_pair*)(p.data))->cdr = val;
 }
 

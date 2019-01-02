@@ -8,7 +8,8 @@
 #include "util.h"
 #include "global_env.h"
 
-#define PAIR_COUNT 1024*1024*80
+#define PAIR_SIZE 1024*1024*2
+#define HEAP_SIZE 1024*1024*1
 
 enum labels{
     read_eval_print_loop,
@@ -55,10 +56,12 @@ void explicit_control_evaluator(){
     t_obj unev = t_nil();
     t_obj global_env = init_global_env();
     t_obj the_stack = t_nil();
+    t_obj * roots[] = {&exp,&env,&val,&proc,&argl,&unev,&global_env,&the_stack};
+    set_gc_root(roots,sizeof(roots)/sizeof(t_obj*));
     while(current_label != exit_all){
         switch(current_label){
         case read_eval_print_loop:
-            init_stack();
+            init_stack(&the_stack);
             printf("\n;;;EC-Eval input: ");
             exp = read();
             env = global_env;
@@ -69,13 +72,13 @@ void explicit_control_evaluator(){
 	  printf("\n;;;EC-Eval value: ");
 	  user_print(val);
 	  printf("\n");
-	  /*if(heart_breaker(&global_env) == NULL){
-	    perror("Pair Heap Full,REPL()");
-	    exit(1);
-	    }*/
 	  current_label = read_eval_print_loop;
 	  break;
         case eval_dispatch:
+	  if(isHeapFull() && heart_breaker(&global_env) == NULL){
+	    perror("Pair Heap Full,REPL()");
+	    exit(1);
+	  }
             switch(exp.t){
 	    case Int:
             case Float:
@@ -290,7 +293,7 @@ void explicit_control_evaluator(){
 
 
 int main(){
-    if(init_heap(PAIR_COUNT) == NULL){
+  if(init_heap(PAIR_SIZE,HEAP_SIZE) == NULL){
         perror("Heap Allocation Failed.");
         return 1;
     }

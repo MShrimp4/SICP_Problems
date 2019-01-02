@@ -1,13 +1,18 @@
 #pragma once
+#include <stdbool.h>
 #include "struct_def.h"
 
-_t_pair * init_heap(size_t size);
+_t_pair * init_heap(size_t p_size, size_t a_size);
 
-void add_track(t_obj * , size_t n);
+void set_gc_root(t_obj * roots[], size_t count);
 
 _t_pair * make_pair();
 
-_t_pair * heart_breaker(t_obj * _global_env);
+void * h_alloc();
+
+bool isHeapFull();
+
+_t_pair * heart_breaker();
 
 _t_pair * _heap();
 
