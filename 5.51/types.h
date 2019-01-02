@@ -68,6 +68,8 @@ t_obj procedure_body(t_obj proc);
 
 t_obj make_to_list(t_obj* objs, int count);
 
+t_obj unsafe_reverse_list(t_obj list);
+
 t_obj t_prim_pointer(void * p);
 
 bool isAnyPair(t_obj o);

@@ -195,6 +195,19 @@ t_obj make_to_list(t_obj* objs, int count){
   return list;
 }
 
+t_obj unsafe_reverse_list(t_obj list){
+  t_obj new_list = t_nil();
+  t_obj next;
+  while(list.t == Pair){
+    next = Cdr(list);
+    set_cdr(list, new_list);
+    new_list = list;
+    list = next;
+  }
+  if(list.t != Nil) new_list = t_pair(list, new_list);
+  return new_list;
+}
+
 t_obj t_prim_pointer(void * p){
   t_obj o;
   o.t = Primitive_Pointer;

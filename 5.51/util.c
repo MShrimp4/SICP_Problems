@@ -96,7 +96,7 @@ t_obj empty_arglist() {
 }
 
 bool isNo_Operands(t_obj unev){
-  return unev.t == Nil;
+  return unev.t != Pair;
 }
 
 t_obj first_operand(t_obj unev){

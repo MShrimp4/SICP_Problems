@@ -30,9 +30,31 @@ t_obj f_add (t_obj list){
   return use_float ? t_float(f) : t_int(i);
 }
 t_obj f_sub (t_obj list){
-  int i = 0;
+  int i;
   float f;
   bool use_float = false;
+  if(list.t != Pair){
+    if(list.t == Int){
+      i = - list.int_;
+      return t_int(i);
+    }
+    else if(list.t == Float){
+      f = - list.float_;
+      return t_float(f);
+    }
+    else return constant("Arithmetic Error");
+  }
+  else{
+    t_obj num = Car(list);
+    list = Cdr(list);
+    if(num.t == Int) i = num.int_;
+    else if(num.t == Float){
+      f = num.float_;
+      use_float = true;
+    }
+    else return constant("Arithmetic Error");
+  }
+  
   for(t_obj j = list;j.t == Pair;j = Cdr(j)){
     t_obj num = Car(j);
     if(num.t == Int){
@@ -99,6 +121,7 @@ t_obj f_div (t_obj list){
 t_obj f_equal(t_obj list){
   if(list.t != Pair) return t_bool(false);
   t_obj o1 = Car(list);
+  list = Cdr(list);
   if(list.t != Pair) return t_bool(false);
   t_obj o2 = Car(list);
   if(o1.t == o2.t){
@@ -128,6 +151,28 @@ t_obj f_cons(t_obj list){
   t_obj cdr = Car(list);
   return t_pair(car,cdr);
 }
+t_obj f_u_set_car(t_obj list){
+  if(list.t != Pair) return t_nil();
+  t_obj p = Car(list);
+  list = Cdr(list);
+  if(list.t != Pair) return t_nil();
+  t_obj obj = Car(list);
+  set_car(p, obj);
+  return p;
+}
+t_obj f_u_set_cdr(t_obj list){
+  if(list.t != Pair) return t_nil();
+  t_obj p = Car(list);
+  list = Cdr(list);
+  if(list.t != Pair) return t_nil();
+  t_obj obj = Car(list);
+  set_cdr(p, obj);
+  return p;
+}
+
+t_obj f_list(t_obj list){
+  return list;
+}
 t_obj f_isNull(t_obj list){
   if(list.t != Pair) return t_nil();
   t_obj o = Car(list);
@@ -145,7 +190,7 @@ t_obj f_show_heap(t_obj list){
   return t_nil();
 }
 
-#define Global_n 12
+#define Global_n 15
 t_obj init_global_env(){
   t_obj vars[Global_n] =
     {
@@ -159,6 +204,9 @@ t_obj init_global_env(){
      t_symbol("car"),
      t_symbol("cdr"),
      t_symbol("cons"),
+     t_symbol("set-car!"),
+     t_symbol("set-cdr!"),
+     t_symbol("list"),
      t_symbol("null?"),
      t_symbol("show-heap")
     };
@@ -174,6 +222,9 @@ t_obj init_global_env(){
      make_primitive_procedure(f_car),
      make_primitive_procedure(f_cdr),
      make_primitive_procedure(f_cons),
+     make_primitive_procedure(f_u_set_car),
+     make_primitive_procedure(f_u_set_cdr),
+     make_primitive_procedure(f_list),
      make_primitive_procedure(f_isNull),
      make_primitive_procedure(f_show_heap)
     };

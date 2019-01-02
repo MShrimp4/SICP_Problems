@@ -66,7 +66,7 @@ void explicit_control_evaluator(){
             current_label = eval_dispatch;
             break;
 	case print_result:
-	  printf("\n;;; EC-Eval value: ");
+	  printf("\n;;;EC-Eval value: ");
 	  user_print(val);
 	  printf("\n");
 	  /*if(heart_breaker(&global_env) == NULL){
@@ -168,7 +168,7 @@ void explicit_control_evaluator(){
             break;
         case ev_appl_accum_last_arg:
             restore(&argl);
-            argl = adjoin_arg(val,argl);
+            argl = unsafe_reverse_list(adjoin_arg(val,argl));
             restore(&proc);
             current_label = apply_dispatch;
             break;
