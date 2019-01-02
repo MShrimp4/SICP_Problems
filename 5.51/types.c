@@ -145,8 +145,11 @@ bool isPrimitive_Procedure(t_obj proc){
 bool isCompound_Procedure(t_obj proc){
   return proc.t == Procedure;
 }
+bool isMacro(t_obj proc){
+  return proc.t == Macro;
+}
 bool isProcedure(t_obj proc){
-  return proc.t == Procedure || proc.t == Primitive_Procedure;
+  return proc.t == Procedure || proc.t == Primitive_Procedure || proc.t == Macro;
 }
 
 t_obj procedure_parameters(t_obj proc){
@@ -240,6 +243,17 @@ t_obj make_procedure(t_obj parameters, t_obj body, t_obj env){
   t_obj procedure = t_pair(name,par_body_env);
   procedure.t = Procedure;
   return procedure;
+}
+
+t_obj as_macro(t_obj proc){
+  if(!isCompound_Procedure(proc)) return t_nil();
+  proc.t = Macro;
+  return proc;
+}
+t_obj as_procedure(t_obj proc){
+  if(!isMacro(proc)) return t_nil();
+  proc.t = Procedure;
+  return proc;
 }
 
 void set_procedure_name(t_obj proc, t_obj name){

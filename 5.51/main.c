@@ -28,6 +28,7 @@ enum labels{
     apply_dispatch,
     primitive_apply,
     compound_apply,
+    macro_resolved,
     ev_begin,
     ev_sequence,
     ev_sequence_continue,
@@ -75,10 +76,6 @@ void explicit_control_evaluator(){
 	  current_label = read_eval_print_loop;
 	  break;
         case eval_dispatch:
-	  if(isHeapFull() && heart_breaker(&global_env) == NULL){
-	    perror("Pair Heap Full,REPL()");
-	    exit(1);
-	  }
             switch(exp.t){
 	    case Int:
             case Float:
@@ -138,6 +135,12 @@ void explicit_control_evaluator(){
         case ev_appl_did_operator:
             restore(&unev);
             restore(&env);
+	    if(isMacro(val)){
+	      save_cont(macro_resolved);
+	      proc = as_procedure(val);
+	      argl = unev;
+	      current_label = apply_dispatch;
+	    }
             argl = empty_arglist();
             proc = val;
             if(isNo_Operands(unev)){
@@ -179,12 +182,16 @@ void explicit_control_evaluator(){
 	  if(isPrimitive_Procedure(proc)){
 	    current_label = primitive_apply;
 	  }
-	  else if(isCompound_Procedure(proc)){
+	  else if(isCompound_Procedure(proc) || isMacro(proc)){
 	    current_label = compound_apply;
 	  }
 	  else current_label = unknown_procedure_type;
 	  break;
         case primitive_apply:
+	  if(isHeapFull() && heart_breaker(&global_env) == NULL){
+	    perror("Pair Heap Full,REPL()");
+	    exit(1);
+	  }
             val = apply_primitive_procedure(proc,argl);
             restore_cont(&cont);
             current_label = cont;
@@ -196,6 +203,11 @@ void explicit_control_evaluator(){
             unev = procedure_body(proc);
             current_label = ev_sequence;
             break;
+	case macro_resolved:
+	  restore_cont(&cont);
+	  exp = val;
+	  current_label = eval_dispatch;
+	  break;
         case ev_begin:
             unev = begin_actions(exp);
             save_cont(cont);

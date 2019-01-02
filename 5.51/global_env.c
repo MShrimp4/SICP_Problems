@@ -33,13 +33,16 @@ t_obj f_sub (t_obj list){
   int i;
   float f;
   bool use_float = false;
-  if(list.t != Pair){
-    if(list.t == Int){
-      i = - list.int_;
+  if(list.t != Pair) return constant("No Argument");
+  if(isLast_Operand(list)){
+    printf("df");
+    t_obj neg = Car(list);
+    if(neg.t == Int){
+      i = - neg.int_;
       return t_int(i);
     }
-    else if(list.t == Float){
-      f = - list.float_;
+    else if(neg.t == Float){
+      f = - neg.float_;
       return t_float(f);
     }
     else return constant("Arithmetic Error");
@@ -190,7 +193,17 @@ t_obj f_show_heap(t_obj list){
   return t_nil();
 }
 
-#define Global_n 15
+t_obj f_as_macro(t_obj list){
+  if(list.t != Pair) return t_nil();
+  return as_macro(Car(list));
+}
+
+t_obj f_as_procedure(t_obj list){
+  if(list.t != Pair) return t_nil();
+  return as_procedure(Car(list));
+}
+
+#define Global_n 17
 t_obj init_global_env(){
   t_obj vars[Global_n] =
     {
@@ -208,7 +221,9 @@ t_obj init_global_env(){
      t_symbol("set-cdr!"),
      t_symbol("list"),
      t_symbol("null?"),
-     t_symbol("show-heap")
+     t_symbol("show-heap"),
+     t_symbol("as-macro"),
+     t_symbol("as-procedure")
     };
   t_obj vals[Global_n] =
     {
@@ -226,7 +241,9 @@ t_obj init_global_env(){
      make_primitive_procedure(f_u_set_cdr),
      make_primitive_procedure(f_list),
      make_primitive_procedure(f_isNull),
-     make_primitive_procedure(f_show_heap)
+     make_primitive_procedure(f_show_heap),
+     make_primitive_procedure(f_as_macro),
+     make_primitive_procedure(f_as_procedure)
     };
   t_obj var_l = make_to_list(vars,Global_n);
   t_obj val_l = make_to_list(vals,Global_n);

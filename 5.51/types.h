@@ -52,6 +52,8 @@ bool isPrimitive_Procedure(t_obj proc);
 
 bool isCompound_Procedure(t_obj proc);
 
+bool isMacro(t_obj proc);
+
 bool isProcedure(t_obj proc);
 
 t_obj procedure_parameters(t_obj proc);
@@ -77,6 +79,10 @@ bool isAnyPair(t_obj o);
 t_obj make_primitive_procedure(t_obj (*func)(t_obj));
 
 t_obj make_procedure(t_obj parameters, t_obj body, t_obj env);
+
+t_obj as_macro(t_obj proc);
+
+t_obj as_procedure(t_obj proc);
 
 void set_procedure_name(t_obj proc, t_obj name);
 
