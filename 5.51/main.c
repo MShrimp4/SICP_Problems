@@ -140,6 +140,7 @@ void explicit_control_evaluator(){
 	      proc = as_procedure(val);
 	      argl = unev;
 	      current_label = apply_dispatch;
+              break;
 	    }
             argl = empty_arglist();
             proc = val;
@@ -283,11 +284,11 @@ void explicit_control_evaluator(){
             current_label = cont;
             break;
         case unknown_expression_type:
-            val = constant("unknown-expression-type-error");
+            val = t_pair(constant("unknown-expression-type-error"),Car(exp));
             current_label = signal_error;
             break;
         case unknown_procedure_type:
-            val = constant("unknown-procedure-type-error");
+            val = t_pair(constant("unknown-procedure-type-error"),proc);
             current_label = signal_error;
             break;
         case signal_error:
